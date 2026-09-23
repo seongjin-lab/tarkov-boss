@@ -19,7 +19,7 @@
 
 ## 界面
 
-<img src="../../Desktop/screenshot.png" alt="Tarkov Boss Monitor 首领刷新检测界面" width="600">
+<img src="./screenshot.png" alt="Tarkov Boss Monitor 首领刷新检测界面" width="600">
 
 ## 启动器修复警告
 

@@ -19,7 +19,7 @@ The installer is not code-signed, so Windows SmartScreen may display a warning.
 
 ## Screenshot
 
-<img src="../../Desktop/screenshot.png" alt="Tarkov Boss Monitor boss spawn detection screen" width="600">
+<img src="./screenshot.png" alt="Tarkov Boss Monitor boss spawn detection screen" width="600">
 
 ## Launcher repair warning
 

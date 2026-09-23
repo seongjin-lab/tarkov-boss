@@ -19,7 +19,7 @@
 
 ## 화면
 
-<img src="../../Desktop/screenshot.png" alt="Tarkov Boss Monitor 보스 스폰 확인 화면" width="600">
+<img src="./screenshot.png" alt="Tarkov Boss Monitor 보스 스폰 확인 화면" width="600">
 
 ## 런처 복구 경고
 
