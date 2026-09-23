@@ -1,0 +1,13 @@
+Tarkov Boss Monitor 1.0.11 使用说明
+
+1. 运行 TarkovBossMonitor-Setup-1.0.11-win-x64.exe。
+2. 确认自动找到的游戏文件夹，或手动选择包含 EscapeFromTarkov.exe 和 Logging.config 的文件夹。
+3. 保存各地图的首领监控设置并进入战局，地图会自动检测。
+
+“计划刷新”仅表示日志中出现 ShallSpawn:True；“已确认刷新”表示检测到首领实际激活记录。
+首次区域和坐标并非当前位置，生存状态也可能无法确认。
+
+安装程序会创建 TarkovBossMonitor-LogCleanup 计划任务，每天 04:00 清理超过 7 天的日志。游戏运行期间、最新日志会话和被锁定的文件不会删除。
+
+当前仅支持会记录详细 AI 日志的官方本地 PvE，不支持 PvP 或在线 PvE。
+安装文件未进行代码签名，Windows SmartScreen 可能显示警告。

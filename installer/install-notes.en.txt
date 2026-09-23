@@ -1,0 +1,12 @@
+Tarkov Boss Monitor 1.0.11
+
+A Windows x64 app that detects boss spawns in official local PvE raids.
+
+- Automatically finds the Tarkov game folder during setup, with manual selection available.
+- Detects the raid map and lets you choose bosses to monitor for each map.
+- Can be installed while the game is running. Required logging settings are applied after the game exits.
+- Cleans game logs older than seven days every day at 04:00, while protecting active logs and the newest session.
+- Removes the scheduled task on uninstall and attempts to restore logging settings changed by the app.
+
+Official local PvE only. PvP and online PvE are not supported.
+The installer is not code-signed, so Windows SmartScreen may display a warning.

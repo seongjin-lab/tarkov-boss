@@ -1,0 +1,13 @@
+Tarkov Boss Monitor 1.0.11 사용법
+
+1. TarkovBossMonitor-Setup-1.0.11-win-x64.exe를 실행합니다.
+2. 자동 탐색된 게임 폴더를 확인하거나 EscapeFromTarkov.exe와 Logging.config가 있는 폴더를 직접 선택합니다.
+3. 맵별 감시 보스를 저장하고 레이드에 입장합니다. 맵은 자동으로 감지합니다.
+
+스폰 예정은 ShallSpawn:True 기록이며, 스폰 확인은 보스의 실제 활성화 기록입니다.
+최초 구역과 좌표는 현재 위치가 아니며 생존 상태는 확인되지 않을 수 있습니다.
+
+설치 시 TarkovBossMonitor-LogCleanup 예약 작업을 등록합니다. 매일 오전 04:00에 7일이 지난 로그를 정리하며 게임 실행 중·가장 최근 세션·잠긴 파일은 보호합니다.
+
+공식 로컬 PvE 상세 로그만 지원합니다. PvP와 온라인 PvE는 지원하지 않습니다.
+설치 파일은 코드 서명되지 않아 Windows SmartScreen 경고가 표시될 수 있습니다.

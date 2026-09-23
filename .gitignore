@@ -1,0 +1,13 @@
+# IDE-local settings
+.idea/
+.vs/
+*.suo
+*.user
+
+# .NET build artifacts
+**/bin/
+**/obj/
+
+# Generated build workspace and outputs
+work/
+outputs/

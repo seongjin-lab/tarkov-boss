@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings><ApplicationIcon>../../assets/boss-monitor.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../BossMonitor.Core/BossMonitor.Core.csproj" />
+    <Resource Include="../../assets/boss-monitor.ico" Link="Assets/boss-monitor.ico" />
+    <Resource Include="../../assets/boss-monitor-icon-radar.png" Link="Assets/radar.png" />
+  </ItemGroup>
+</Project>

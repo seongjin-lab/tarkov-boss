@@ -1,0 +1,13 @@
+Tarkov Boss Monitor 1.0.11 Quick Guide
+
+1. Run TarkovBossMonitor-Setup-1.0.11-win-x64.exe.
+2. Confirm the detected game folder, or select the folder containing EscapeFromTarkov.exe and Logging.config.
+3. Save the bosses to monitor for each map and enter a raid. The map is detected automatically.
+
+“Planned” only means ShallSpawn:True was found in the log. “Confirmed” means an actual boss activation record was detected.
+The first zone and coordinates are not the current position. Survival status may not be available.
+
+Setup creates a TarkovBossMonitor-LogCleanup scheduled task. It runs daily at 04:00 and removes logs older than seven days. Logs in use, the newest session, and locked files are protected.
+
+Only official local PvE with detailed AI logging is supported. PvP and online PvE are not supported.
+The installer is not code-signed, so Windows SmartScreen may display a warning.

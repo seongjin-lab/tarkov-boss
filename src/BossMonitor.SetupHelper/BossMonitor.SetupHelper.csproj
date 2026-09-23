@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>WinExe</OutputType><UseWindowsForms>true</UseWindowsForms><ApplicationManifest>app.manifest</ApplicationManifest><ApplicationIcon>../../assets/boss-monitor.ico</ApplicationIcon></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../BossMonitor.Core/BossMonitor.Core.csproj" /></ItemGroup>
+</Project>

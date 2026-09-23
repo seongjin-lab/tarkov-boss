@@ -1,0 +1,24 @@
+global using System;
+global using System.IO;
+global using System.Linq;
+global using System.Collections.Generic;
+global using System.Diagnostics;
+global using System.Threading;
+global using System.Threading.Tasks;
+global using System.Windows;
+global using System.Windows.Controls;
+global using System.Windows.Media;
+global using System.Windows.Media.Imaging;
+global using BossMonitor.Core;
+global using Forms = System.Windows.Forms;
+global using Brush = System.Windows.Media.Brush;
+global using Brushes = System.Windows.Media.Brushes;
+global using Button = System.Windows.Controls.Button;
+global using TextBox = System.Windows.Controls.TextBox;
+global using ComboBox = System.Windows.Controls.ComboBox;
+global using CheckBox = System.Windows.Controls.CheckBox;
+global using MessageBox = System.Windows.MessageBox;
+global using Application = System.Windows.Application;
+global using Orientation = System.Windows.Controls.Orientation;
+global using Image = System.Windows.Controls.Image;
+
