@@ -1,6 +1,6 @@
-Tarkov Boss Monitor 1.0.11 使用说明
+Tarkov Boss Monitor 1.0.12 使用说明
 
-1. 运行 TarkovBossMonitor-Setup-1.0.11-win-x64.exe。
+1. 运行 TarkovBossMonitor-Setup-1.0.12-win-x64.exe。
 2. 确认自动找到的游戏文件夹，或手动选择包含 EscapeFromTarkov.exe 和 Logging.config 的文件夹。
 3. 保存各地图的首领监控设置并进入战局，地图会自动检测。
 

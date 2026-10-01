@@ -1,6 +1,6 @@
-Tarkov Boss Monitor 1.0.11 Quick Guide
+Tarkov Boss Monitor 1.0.12 Quick Guide
 
-1. Run TarkovBossMonitor-Setup-1.0.11-win-x64.exe.
+1. Run TarkovBossMonitor-Setup-1.0.12-win-x64.exe.
 2. Confirm the detected game folder, or select the folder containing EscapeFromTarkov.exe and Logging.config.
 3. Save the bosses to monitor for each map and enter a raid. The map is detected automatically.
 
