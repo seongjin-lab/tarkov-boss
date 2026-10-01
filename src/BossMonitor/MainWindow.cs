@@ -10,6 +10,10 @@ public class MainWindow : Window
     private readonly TextBlock map=Theme.Label(I18n.T("게임 경로 설정 대기","等待设置游戏路径"),26),connection=Theme.Label("",13,Theme.Muted),raidLabel=Theme.Label("",13,Theme.Muted);
     private readonly StackPanel bosses=new();
     private readonly StackPanel pmcs=new();
+    private readonly StackPanel waiting=new();
+    private readonly Grid raidColumns=new();
+    private readonly ScrollViewer monitorScroll=new() {VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false};
+    private readonly Border updateBanner=new() {Visibility=Visibility.Collapsed,Background=Theme.Color("#E4EFE9"),BorderBrush=Theme.Green,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(8),Padding=new Thickness(12,8,8,8),Margin=new Thickness(0,6,0,0)};
     private readonly Button pause=new() {Content=I18n.T("감시 일시 중지","暂停监控")};
     private readonly Forms.NotifyIcon tray;
     private readonly DockPanel monitor;
@@ -20,6 +24,8 @@ public class MainWindow : Window
     private readonly HashSet<string> notifiedBosses=new(StringComparer.OrdinalIgnoreCase);
     private DateTime hiddenAt=DateTime.MaxValue;
     private DateTime lastConfig=DateTime.MinValue;
+    private DateTime nextUpdateCheckUtc=DateTime.MinValue;
+    private bool checkingForUpdates,updateNotified;
     public MainWindow()
     {
         // The installer configures the machine path. Adopt it in the actual desktop user's profile.
@@ -32,22 +38,26 @@ public class MainWindow : Window
             }
         }
         catch { }
-        Title="Tarkov Boss Monitor";Width=700;Height=660;MinWidth=530;MinHeight=450;Topmost=settings.AlwaysOnTop;Theme.WindowIcon(this);
+        Title="Tarkov Boss Monitor";Width=900;Height=700;MinWidth=620;MinHeight=450;Topmost=settings.AlwaysOnTop;Theme.WindowIcon(this);
         var root=new DockPanel {Margin=new Thickness(24)};monitor=root;Content=root;
         var header=new StackPanel();DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
         var branding=new StackPanel {Orientation=Orientation.Horizontal};
         branding.Children.Add(Theme.Label("BOSS MONITOR",24,Theme.Green));header.Children.Add(branding);
         raidLabel.Visibility=Visibility.Collapsed;connection.Visibility=Visibility.Collapsed;
-        header.Children.Add(map);header.Children.Add(raidLabel);header.Children.Add(connection);
+        header.Children.Add(map);header.Children.Add(raidLabel);header.Children.Add(connection);header.Children.Add(updateBanner);
         var footer=new StackPanel();DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
         var actions=new WrapPanel();
         pause.Click+=(s,e)=>TogglePause();actions.Children.Add(pause);
         actions.Children.Add(Theme.Action(I18n.T("설정","设置"),(s,e)=>OpenSettings()));
         actions.Children.Add(Theme.Action(I18n.T("트레이로","最小化到托盘"),(s,e)=>HideToTray()));footer.Children.Add(actions);
-        var tabs=new TabControl {Background=Theme.Bg,Foreground=Theme.Text,BorderThickness=new Thickness(0),Margin=new Thickness(0,14,0,10)};
-        tabs.Items.Add(MonitorTab(I18n.T("보스","首领"),bosses));
-        tabs.Items.Add(MonitorTab("AI PMC",pmcs));
-        root.Children.Add(tabs);
+        raidColumns.ColumnDefinitions.Add(new() {Width=new GridLength(1,GridUnitType.Star)});
+        raidColumns.ColumnDefinitions.Add(new() {Width=new GridLength(1,GridUnitType.Star)});
+        var bossColumn=MonitorColumn(I18n.T("보스","首领"),bosses,new Thickness(0,0,8,0));
+        var pmcColumn=MonitorColumn("AI PMC",pmcs,new Thickness(8,0,0,0));Grid.SetColumn(pmcColumn,1);
+        raidColumns.Children.Add(bossColumn);raidColumns.Children.Add(pmcColumn);
+        var monitorBody=new Grid {Margin=new Thickness(0,8,0,6)};
+        monitorBody.Children.Add(raidColumns);monitorBody.Children.Add(waiting);
+        monitorScroll.Content=monitorBody;root.Children.Add(monitorScroll);
         var menu=new Forms.ContextMenuStrip();menu.Items.Add(I18n.T("창 열기","打开窗口"),null,(s,e)=>Dispatcher.Invoke(ShowMain));menu.Items.Add(I18n.T("감시 일시 중지 / 재개","暂停/继续监控"),null,(s,e)=>Dispatcher.Invoke(TogglePause));menu.Items.Add(I18n.T("설정","设置"),null,(s,e)=>Dispatcher.Invoke(()=>{ShowMain();OpenSettings();}));menu.Items.Add(I18n.T("종료","退出"),null,(s,e)=>Dispatcher.Invoke(ExitApplication));
         using var stream=Application.GetResourceStream(new Uri("pack://application:,,,/Assets/boss-monitor.ico")).Stream;
         tray=new Forms.NotifyIcon {Icon=new System.Drawing.Icon(stream),Text="Tarkov Boss Monitor",Visible=true,ContextMenuStrip=menu};tray.DoubleClick+=(s,e)=>Dispatcher.Invoke(ShowMain);
@@ -55,7 +65,7 @@ public class MainWindow : Window
         timer.Tick+=async(s,e)=>await Tick();
         Loaded+=async(s,e)=>
         {
-            timer.Start();await Tick();
+            timer.Start();await Tick();FitWindowToContent();
         };
         if(string.IsNullOrWhiteSpace(settings.GamePath))OpenSettings(true);
         else Render(DisplayRaid(reader.Current));
@@ -69,11 +79,33 @@ public class MainWindow : Window
         Application.Current.SessionEnding+=(s,e)=>{exitRequested=true;};
         Closed+=(s,e)=>{closed=true;timer.Stop();tray.Visible=false;tray.Dispose();};
     }
-    private static TabItem MonitorTab(string title,StackPanel panel) => new()
+    private static FrameworkElement MonitorColumn(string title,StackPanel panel,Thickness margin)
     {
-        Header=title,Foreground=Theme.Text,Padding=new Thickness(18,9,18,9),
-        Content=new ScrollViewer {Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Margin=new Thickness(0,12,0,0)}
+        var column=new StackPanel {Margin=margin};
+        column.Children.Add(CompactLabel(title,16,Theme.Text));
+        column.Children.Add(panel);
+        return column;
+    }
+    private static TextBlock CompactLabel(string text,double size=13,Brush? color=null)=>new()
+    {
+        Text=text,FontSize=size,FontWeight=size>=16?FontWeights.SemiBold:FontWeights.Normal,
+        Foreground=color??Theme.Text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,2,0,5)
     };
+    private void FitWindowToContent()
+    {
+        if(!IsLoaded||subpage||WindowState!=WindowState.Normal)return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if(subpage||WindowState!=WindowState.Normal)return;
+            monitorScroll.UpdateLayout();
+            double chrome=ActualHeight-monitorScroll.ViewportHeight;
+            if(double.IsNaN(chrome)||chrome<=0)return;
+            var work=SystemParameters.WorkArea;
+            double target=Math.Clamp(chrome+monitorScroll.ExtentHeight+4,MinHeight,Math.Max(MinHeight,work.Height-24));
+            if(Math.Abs(Height-target)>1)Height=target;
+            if(Top+Height>work.Bottom)Top=Math.Max(work.Top,work.Bottom-Height);
+        },DispatcherPriority.Loaded);
+    }
     internal void ShowMain()
     {
         Show();WindowState=WindowState.Normal;Activate();Focus();
@@ -105,13 +137,19 @@ public class MainWindow : Window
         var view=new SettingsView(settings,reader.ObservedRoles,first);settingsView=view;subpage=true;Topmost=false;Content=view;Title=first?I18n.T("처음 시작하기 · Tarkov Boss Monitor","开始使用 · Tarkov Boss Monitor"):I18n.T("설정 · Tarkov Boss Monitor","设置 · Tarkov Boss Monitor");
         view.Completed+=saved=>
         {
-            if(saved){settings=view.Settings;reader.Reset();rendering="";retryRoot="";lastConfig=DateTime.MinValue;}
+            if(saved)
+            {
+                settings=view.Settings;reader.Reset();rendering="";retryRoot="";lastConfig=DateTime.MinValue;
+                if(!settings.CheckForUpdates)updateBanner.Visibility=Visibility.Collapsed;
+                else {nextUpdateCheckUtc=DateTime.MinValue;_ = CheckForUpdates();}
+            }
             settingsView=null;ReturnToMonitor();Render(DisplayRaid(reader.Current));
         };
     }
     private void ReturnToMonitor(){subpage=false;Content=monitor;Title="Tarkov Boss Monitor";Topmost=settings.AlwaysOnTop;}
     private async Task Tick()
     {
+        if(settings.CheckForUpdates && DateTime.UtcNow>=nextUpdateCheckUtc)_ = CheckForUpdates();
         if(busy||paused||closed||(subpage && IsVisible)||settingsView?.IsApplying==true||settings.GamePath=="")return;
         busy=true;
         try
@@ -143,6 +181,31 @@ public class MainWindow : Window
         catch(Exception ex){configuring=false;SetStatus(I18n.T("감시 오류: ","监控错误：")+ex.Message);}
         finally {busy=false;}
     }
+    private async Task CheckForUpdates()
+    {
+        if(checkingForUpdates||closed||!settings.CheckForUpdates)return;
+        checkingForUpdates=true;nextUpdateCheckUtc=DateTime.UtcNow.AddDays(1);
+        try
+        {
+            var update=await UpdateChecker.CheckAsync();
+            if(update==null||closed||!settings.CheckForUpdates)return;
+            string message=string.Format(I18n.T("새 버전 {0}을 사용할 수 있습니다.","新版本 {0} 可用。"),update.Tag);
+            var content=new DockPanel();
+            var open=Theme.Action(I18n.T("릴리스 페이지 열기","打开发布页面"),(s,e)=>OpenReleasePage());DockPanel.SetDock(open,Dock.Right);content.Children.Add(open);
+            content.Children.Add(Theme.Label(message,14,Theme.Green));updateBanner.Child=content;updateBanner.Visibility=Visibility.Visible;FitWindowToContent();
+            if(!updateNotified)
+            {
+                updateNotified=true;
+                tray.ShowBalloonTip(6000,I18n.T("새 버전 사용 가능","有新版本可用"),message+I18n.T(" 알림을 클릭하면 창을 다시 엽니다."," 点击通知可重新打开窗口。"),Forms.ToolTipIcon.Info);
+            }
+        }
+        catch(Exception){}
+        finally{checkingForUpdates=false;}
+    }
+    private static void OpenReleasePage()
+    {
+        try{Process.Start(new ProcessStartInfo(UpdateChecker.ReleasePage){UseShellExecute=true});}catch{}
+    }
     private static RaidState DisplayRaid(RaidState raid)
         => raid.Ended && (raid.EndedAt==null || DateTime.Now-raid.EndedAt>EndedRaidDisplayTime) ? new() : raid;
     private void Render(RaidState raid)
@@ -150,37 +213,50 @@ public class MainWindow : Window
         var filter=settings.Filter(raid.Map);
         var roles=filter.Mode=="selected"?filter.Roles:raid.Bosses.Keys.ToList();
         if(filter.Mode=="off"||raid.Map=="")roles=[];
+        roles=roles.Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(role=>StatusOrder(raid.Bosses.GetValueOrDefault(role)?.Status))
+            .ThenBy(role=>Catalog.BossName(role,settings),StringComparer.CurrentCultureIgnoreCase).ToList();
         string signature=raid.Key+raid.Ended+paused+filter.Mode+string.Join("|",roles.Select(r=>r+System.Text.Json.JsonSerializer.Serialize(raid.Bosses.GetValueOrDefault(r))))+System.Text.Json.JsonSerializer.Serialize(raid.Pmcs);
-        if(signature==rendering)return;rendering=signature;bosses.Children.Clear();pmcs.Children.Clear();
-        if(raid.Map==""){RenderWaiting(bosses);RenderWaiting(pmcs);return;}
+        if(signature==rendering)return;rendering=signature;bosses.Children.Clear();pmcs.Children.Clear();waiting.Children.Clear();
+        if(raid.Map=="")
+        {
+            raidColumns.Visibility=Visibility.Collapsed;waiting.Visibility=Visibility.Visible;RenderWaiting(waiting);FitWindowToContent();return;
+        }
+        waiting.Visibility=Visibility.Collapsed;raidColumns.Visibility=Visibility.Visible;
         RenderPmcs(raid);
-        if(filter.Mode=="off"){bosses.Children.Add(Theme.Label(I18n.T("이 맵은 감시하지 않도록 설정되어 있습니다.","此地图已设置为不监控。"),16,Theme.Muted));return;}
-        if(roles.Count==0){bosses.Children.Add(Theme.Label(filter.Mode=="selected"?I18n.T("선택된 보스가 없습니다. 설정에서 보스를 선택해 주세요.","未选择首领，请在设置中选择。"):I18n.T("모든 보스 감시 중 · 보스 판정 기록 대기","正在监控所有首领 · 等待判定记录"),16,Theme.Muted));return;}
-        foreach(string role in roles.Distinct(StringComparer.OrdinalIgnoreCase))
+        if(filter.Mode=="off"){bosses.Children.Add(Theme.Label(I18n.T("이 맵은 감시하지 않도록 설정되어 있습니다.","此地图已设置为不监控。"),16,Theme.Muted));FitWindowToContent();return;}
+        if(roles.Count==0){bosses.Children.Add(Theme.Label(filter.Mode=="selected"?I18n.T("선택된 보스가 없습니다. 설정에서 보스를 선택해 주세요.","未选择首领，请在设置中选择。"):I18n.T("모든 보스 감시 중 · 보스 판정 기록 대기","正在监控所有首领 · 等待判定记录"),16,Theme.Muted));FitWindowToContent();return;}
+        foreach(string role in roles)
         {
             var state=raid.Bosses.GetValueOrDefault(role)??new BossState {Role=role};
             Brush accent=state.Status=="Confirmed"?Theme.Green:state.Status=="Planned"?Theme.Amber:Theme.Muted;
-            var content=new StackPanel {Margin=new Thickness(18,12,18,12)};
-            content.Children.Add(Theme.Label(Catalog.BossName(role,settings),20));
-            content.Children.Add(Theme.Label(Helpers.Status(state.Status)+(raid.Ended?I18n.T(" · 레이드 종료"," · 战局已结束"):""),18,accent));
-            if(state.SpawnChance is int chance)content.Children.Add(Theme.Label($"{I18n.T("스폰 확률", "刷新概率")} {chance}%",14,Theme.Muted));
-            if(state.At!=null)content.Children.Add(Theme.Label($"{I18n.T("기록", "记录")} {state.At:HH:mm:ss} · {role}",12,Theme.Muted));
+            var content=new StackPanel {Margin=new Thickness(14,8,14,7)};
+            content.Children.Add(CompactLabel(Catalog.BossName(role,settings),18));
+            content.Children.Add(CompactLabel(Helpers.Status(state.Status)+(raid.Ended?I18n.T(" · 레이드 종료"," · 战局已结束"):""),15,accent));
+            if(state.SpawnChance is int chance)content.Children.Add(CompactLabel($"{I18n.T("스폰 확률", "刷新概率")} {chance}%",13,Theme.Muted));
+            if(state.At!=null)content.Children.Add(CompactLabel($"{I18n.T("기록", "记录")} {state.At:HH:mm:ss}",12,Theme.Muted));
             if(state.Status=="Confirmed")
             {
-                content.Children.Add(Theme.Label(Helpers.LifeStatus(state,raid.Ended),17,
+                content.Children.Add(CompactLabel(Helpers.LifeStatus(state,raid.Ended),15,
                     state.LifeInstances.Count>0 && state.LifeInstances.All(i=>i.LifeStatus=="DeadConfirmed")?Theme.Muted:Theme.Green));
                 if(state.LifeInstances.Count>1)
                     foreach(var instance in state.LifeInstances.Where(i=>i.DiedAt!=null))
-                        content.Children.Add(Theme.Label($"{I18n.T("개체", "个体")} {instance.BotId} · {I18n.T("사망 확인", "已确认死亡")} {instance.DiedAt:HH:mm:ss}",13,Theme.Muted));
-                content.Children.Add(Theme.Label($"{I18n.T("최초 구역", "首次区域")}: {(state.Zone==""?I18n.T("확인 불가","无法确认"):state.Zone)}\n{I18n.T("최초 좌표", "首次坐标")}: {(state.Position==""?I18n.T("확인 불가","无法确认"):state.Position)}",13));
-                if(state.Count>1)content.Children.Add(Theme.Label($"{I18n.T("활성화 개체", "已激活个体")} {state.Count}",12,Theme.Muted));
+                        content.Children.Add(CompactLabel($"{I18n.T("개체", "个体")} {instance.BotId} · {I18n.T("사망 확인", "已确认死亡")} {instance.DiedAt:HH:mm:ss}",12,Theme.Muted));
+                content.Children.Add(CompactLabel($"{I18n.T("최초 구역", "首次区域")}: {(state.Zone==""?I18n.T("확인 불가","无法确认"):state.Zone)}\n{I18n.T("최초 좌표", "首次坐标")}: {(state.Position==""?I18n.T("확인 불가","无法确认"):state.Position)}",12));
+                if(state.Count>1)content.Children.Add(CompactLabel($"{I18n.T("활성화 개체", "已激活个体")} {state.Count}",12,Theme.Muted));
             }
-            bosses.Children.Add(new Border {Background=Theme.Card,BorderBrush=accent,BorderThickness=new Thickness(3,0,0,0),CornerRadius=new CornerRadius(8),Margin=new Thickness(0,0,0,12),Child=content});
+            bosses.Children.Add(new Border {Background=Theme.Card,BorderBrush=accent,BorderThickness=new Thickness(3,0,0,0),CornerRadius=new CornerRadius(8),Margin=new Thickness(0,0,0,8),Child=content});
         }
+        FitWindowToContent();
     }
+    private static int StatusOrder(string? status)=>status switch {"Confirmed"=>0,"Planned"=>1,"NotPlanned"=>2,_=>3};
     private void RenderPmcs(RaidState raid)
     {
-        var states=new[]{"pmcBEAR","pmcUSEC"}.Select(role=>raid.Pmcs.GetValueOrDefault(role)??new PmcState {Role=role}).ToList();
+        var states=new[]{"pmcBEAR","pmcUSEC"}
+            .Select(role=>raid.Pmcs.GetValueOrDefault(role)??new PmcState {Role=role})
+            .OrderBy(state=>StatusOrder(state.Status))
+            .ThenBy(state=>state.Role.Equals("pmcBEAR",StringComparison.OrdinalIgnoreCase)?0:1)
+            .ToList();
         if(states.All(p=>p.TotalWaves==0 && p.Count==0))
         {
             pmcs.Children.Add(Theme.Label(I18n.T("AI PMC 웨이브 기록 대기","等待 AI PMC 波次记录"),16,Theme.Muted));
@@ -189,31 +265,31 @@ public class MainWindow : Window
         foreach(var state in states)
         {
             Brush accent=state.Status=="Confirmed"?Theme.Green:state.Status=="Planned"?Theme.Amber:Theme.Muted;
-            var content=new StackPanel {Margin=new Thickness(18,12,18,12)};
-            content.Children.Add(Theme.Label(state.Role.Equals("pmcBEAR",StringComparison.OrdinalIgnoreCase)?"BEAR":"USEC",20));
             string initial=state.InitialPlannedWaves>0
                 ? state.Count>0 ? I18n.T("초기 스폰","初始刷新") : I18n.T("초기 스폰 예정","初始刷新已计划")
                 : I18n.T("초기 스폰 없음","无初始刷新");
             Brush initialColor=state.InitialPlannedWaves==0?Theme.Muted:state.Count>0?Theme.Green:Theme.Amber;
-            content.Children.Add(Theme.Label(initial,18,initialColor));
+            var content=new StackPanel {Margin=new Thickness(14,8,14,7)};
+            content.Children.Add(CompactLabel(state.Role.Equals("pmcBEAR",StringComparison.OrdinalIgnoreCase)?"BEAR":"USEC",18));
+            content.Children.Add(CompactLabel(initial,15,initialColor));
             string additional=raid.Ended
                 ? I18n.T("추가 스폰 감시 종료","追加刷新监测已结束")
                 : state.AdditionalPlannedWaves>0
                     ? I18n.T("추가 스폰 예정","追加刷新已计划")
                     : I18n.T("추가 스폰 감시 중","正在监测追加刷新");
-            content.Children.Add(Theme.Label(additional,14,state.AdditionalPlannedWaves>0?Theme.Amber:Theme.Muted));
+            content.Children.Add(CompactLabel(additional,13,state.AdditionalPlannedWaves>0?Theme.Amber:Theme.Muted));
             if(state.Count>0)
             {
-                content.Children.Add(Theme.Label($"{I18n.T("실제 활성화","实际激活")} {state.Count}{I18n.T("명","个")}",16,Theme.Green));
+                content.Children.Add(CompactLabel($"{I18n.T("실제 활성화","实际激活")} {state.Count}{I18n.T("명","个")}",14,Theme.Green));
                 int dead=state.LifeInstances.Count(i=>i.LifeStatus=="DeadConfirmed" && i.DiedAt!=null);
                 int alive=state.Count-dead;
                 string life=raid.Ended
                     ? $"{I18n.T("종료 시 사망 미확인","结束时未确认死亡")} {alive}{I18n.T("명","个")} · {I18n.T("사망 확인","已确认死亡")} {dead}{I18n.T("명","个")}"
                     : $"{I18n.T("생존 추정","推测存活")} {alive}{I18n.T("명","个")} · {I18n.T("사망 확인","已确认死亡")} {dead}{I18n.T("명","个")}";
-                content.Children.Add(Theme.Label(life,15,alive>0?Theme.Green:Theme.Muted));
-                content.Children.Add(Theme.Label($"{I18n.T("첫 활성화","首次激活")} {state.FirstSpawnedAt:HH:mm:ss}\n{I18n.T("최초 좌표","首次坐标")}: {(state.FirstPosition==""?I18n.T("확인 불가","无法确认"):state.FirstPosition)}",13));
+                content.Children.Add(CompactLabel(life,13,alive>0?Theme.Green:Theme.Muted));
+                content.Children.Add(CompactLabel($"{I18n.T("첫 활성화","首次激活")} {state.FirstSpawnedAt:HH:mm:ss}\n{I18n.T("최초 좌표","首次坐标")}: {(state.FirstPosition==""?I18n.T("확인 불가","无法确认"):state.FirstPosition)}",12));
             }
-            pmcs.Children.Add(new Border {Background=Theme.Card,BorderBrush=accent,BorderThickness=new Thickness(3,0,0,0),CornerRadius=new CornerRadius(8),Margin=new Thickness(0,0,0,12),Child=content});
+            pmcs.Children.Add(new Border {Background=Theme.Card,BorderBrush=accent,BorderThickness=new Thickness(3,0,0,0),CornerRadius=new CornerRadius(8),Margin=new Thickness(0,0,0,8),Child=content});
         }
     }
     private void RenderWaiting(StackPanel target)

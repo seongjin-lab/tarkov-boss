@@ -12,6 +12,7 @@ public class SettingsView : UserControl
     private readonly TextBlock setupStatus=Theme.Label("",13,Theme.Muted),taskStatus=Theme.Label("",12,Theme.Muted),cleanup=Theme.Label("",12,Theme.Muted),storage=Theme.Label("",12,Theme.Muted);
     private readonly CheckBox top=new() {Content=I18n.T("항상 위에 표시","始终置顶")};
     private readonly CheckBox closeToTray=new() {Content=I18n.T("닫으면 트레이로 숨기기","关闭时最小化到托盘")};
+    private readonly CheckBox updates=new() {Content=I18n.T("새 버전 알림","新版本通知")};
     private readonly List<(string Role,CheckBox Box)> checks=[];
     private readonly HashSet<string> observed;
     private string currentMap="";
@@ -42,6 +43,8 @@ public class SettingsView : UserControl
         top.IsChecked=Settings.AlwaysOnTop;body.Children.Add(top);
         closeToTray.IsChecked=Settings.CloseToTray;body.Children.Add(closeToTray);
         body.Children.Add(Theme.Label(I18n.T("체크하면 닫기(X)로 숨긴 뒤에도 감시합니다. 해제하면 창을 닫을 때 종료합니다.\n트레이로 숨길 때 안내하고, 숨겨진 상태에서 보스 스폰 확인 시 Windows 알림을 표시합니다.","启用后，点击关闭(X)会隐藏到托盘并继续监控；禁用后将退出程序。\n隐藏到托盘时会提示，隐藏期间确认首领刷新时会显示 Windows 通知。"),13,Theme.Muted));
+        updates.IsChecked=Settings.CheckForUpdates;body.Children.Add(updates);
+        body.Children.Add(Theme.Label(I18n.T("앱 시작 시와 하루에 한 번 GitHub에서 새 버전을 확인합니다.","应用启动时及每天一次在 GitHub 检查新版本。"),13,Theme.Muted));
         body=Section(I18n.T("맵별 보스","各地图首领"));
         body.Children.Add(Theme.Label(I18n.T("맵별 감시 보스","按地图选择监控首领"),17));body.Children.Add(Theme.Label(I18n.T("맵은 자동으로 감지합니다. 여기서 각 맵의 감시 대상을 선택하세요.","地图会自动检测。请在此选择每张地图要监控的首领。"),14,Theme.Muted));map.SelectionChanged+=(s,e)=>SelectMap();body.Children.Add(map);
         mode.Items.Add(I18n.T("모든 보스 감시","监控所有首领"));mode.Items.Add(I18n.T("선택한 보스만 감시","仅监控所选首领"));mode.Items.Add(I18n.T("감시 안 함","不监控"));mode.SelectionChanged+=(s,e)=>{choices.IsEnabled=mode.SelectedIndex==1;};body.Children.Add(mode);
@@ -118,7 +121,7 @@ public class SettingsView : UserControl
             bool needed=!Paths.LoggingReady(root);
             try{needed|=!Maintenance.State().GameRoot.Equals(root,StringComparison.OrdinalIgnoreCase);}catch{needed=true;}
             if(needed && !await ApplyTrace())return;
-            Settings.GamePath=root;Settings.AlwaysOnTop=top.IsChecked==true;Settings.CloseToTray=closeToTray.IsChecked==true;Settings.Save();Completed?.Invoke(true);
+            Settings.GamePath=root;Settings.AlwaysOnTop=top.IsChecked==true;Settings.CloseToTray=closeToTray.IsChecked==true;Settings.CheckForUpdates=updates.IsChecked==true;Settings.Save();Completed?.Invoke(true);
         }
         catch(Exception ex){setupStatus.Text=ex.Message;}
     }

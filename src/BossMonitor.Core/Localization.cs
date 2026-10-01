@@ -76,6 +76,8 @@ public static class I18n
         ["설정을 적용하지 못했습니다. 오류 안내를 확인해 주세요."]="Could not apply the settings. Check the error message.", ["설치 경로 탐색 중…"]="Searching for the installation path…",
         ["설치 관리자 권한이 필요합니다."]="Administrator privileges are required for installation.", ["설치 완료"]="Installation complete", ["설치 후보"]="Installation candidates",
         ["스폰 예정"]="Planned spawn", ["스폰 예정 없음"]="No planned spawn", ["스폰 확률"]="Spawn chance", ["스폰 확인"]="Spawn confirmed",
+        ["새 버전 알림"]="New version notifications", ["새 버전 사용 가능"]="New version available", ["새 버전 {0}을 사용할 수 있습니다."]="Version {0} is available.",
+        ["릴리스 페이지 열기"]="Open release page", ["앱 시작 시와 하루에 한 번 GitHub에서 새 버전을 확인합니다."]="Check GitHub for a new version at startup and once a day.",
         ["아직 정리 실행 기록이 없습니다."]="No cleanup run has been recorded yet.", ["알 수 없는 로그 수준입니다. 자동 변경을 중단했습니다."]="Unknown log level. Automatic changes were stopped.",
         ["업데이트 준비 완료"]="Update preparation complete", ["예약 작업 복구"]="Repair scheduled task", ["예약 작업 복구 실패"]="Scheduled task repair failed",
         ["예약 작업 복구 완료"]="Scheduled task repair complete", ["예약 작업 제거 및"]="Scheduled task removed and", ["예약 작업 제거 및 제품이 변경한 로그 설정 복원 완료."]="Scheduled task removed and logging settings changed by the app restored.",

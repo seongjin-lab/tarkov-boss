@@ -58,6 +58,9 @@ public class RaidState
     public DateTime? Started { get; set; }
     public bool Ended { get; set; }
     public DateTime? EndedAt { get; set; }
+    public DateTime? GameDateTime { get; set; }
+    public double GameTimeFactor { get; set; } = 7;
+    public TimeSpan? RaidDuration { get; set; }
     public Dictionary<string,BossState> Bosses { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string,PmcState> Pmcs { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
@@ -100,8 +103,12 @@ public class LogReader
         if (!latest.Equals(Session,StringComparison.OrdinalIgnoreCase)) { Reset(); Session=latest; }
         var all = Directory.GetFiles(Session,"*.log");
         var files = all.Where(p=>Regex.IsMatch(Path.GetFileName(p), @" (application|aiData|backend)_\d+\.log$")).ToList();
-        if (!files.Any(p=>Path.GetFileName(p).Contains(" aiData_")) || !files.Any(p=>Path.GetFileName(p).Contains(" application_")))
-            files.AddRange(all.Where(p=>Regex.IsMatch(Path.GetFileName(p), @" output_\d+\.log$")));
+        bool hasCanonicalAiAndApplication=files.Any(p=>Path.GetFileName(p).Contains(" aiData_")) && files.Any(p=>Path.GetFileName(p).Contains(" application_"));
+        // GameDateTime and the raid timer are only written to output.log. Always read it,
+        // but when canonical logs exist only accept its time records to avoid duplicating
+        // the AI events mirrored there.
+        files.AddRange(all.Where(p=>Regex.IsMatch(Path.GetFileName(p), @" output_\d+\.log$")));
+        files=files.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         bool replay = files.Any(f=>cursors.TryGetValue(f,out var c) && (new FileInfo(f).Length<c.Offset || File.GetCreationTimeUtc(f)!=c.Created));
         if (replay) { Reset(); Session=latest; }
         bool changed=false;
@@ -130,7 +137,8 @@ public class LogReader
                         HasAiData=true;
                         if(DateTime.TryParseExact(line.AsSpan(0,Math.Min(23,line.Length)),"yyyy-MM-dd HH:mm:ss.fff",CultureInfo.InvariantCulture,DateTimeStyles.None,out var aiTime) && (LatestAiAt==null || aiTime>LatestAiAt)) LatestAiAt=aiTime;
                     }
-                    var ev=Parse(line,new(file,cursor.Line));
+                    bool timeOnly=hasCanonicalAiAndApplication && Regex.IsMatch(Path.GetFileName(file), @" output_\d+\.log$");
+                    var ev=Parse(line,new(file,cursor.Line),timeOnly);
                     if(ev!=null && seen.Add(ev.Key)) { events.Add(ev); changed=true; if(ev.Kind is "Active" or "Plan") ObservedRoles.Add(ev.Value); }
                 }
                 // Ignore unbounded malformed lines, which must never exhaust memory.
@@ -141,13 +149,25 @@ public class LogReader
         long pending=files.Sum(f=>Math.Max(0,new FileInfo(f).Length-(cursors.GetValueOrDefault(f)?.Offset??0)));
         Diagnostic=pending>0 ? I18n.T("로그 복원 중…", "正在恢复日志…") : HasAiData ? I18n.T("로그 연결됨 · 상세 AI 기록 확인", "日志已连接 · 已检测到详细 AI 记录") : I18n.T("AI 상세 로그 대기 · 로컬 PvE 지원", "等待详细 AI 日志 · 支持本地 PvE");
     }
-    private static LogEvent? Parse(string line, Evidence evidence)
+    private static LogEvent? Parse(string line, Evidence evidence, bool timeOnly=false)
     {
         if(line.Length<24 || !DateTime.TryParseExact(line[..23],"yyyy-MM-dd HH:mm:ss.fff",CultureInfo.InvariantCulture,DateTimeStyles.None,out var time)) return null;
         string kind="",value="",extra="",id="",botId="";
         int? spawnChance=null;
         Match m;
-        if(line.Contains("|application|MatchingCompleted:")) kind="Match";
+        if((m=Regex.Match(line,@"RealDateTime:\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}\s+GameDateTime:(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2})\s+factor:([0-9.]+)")).Success &&
+            DateTime.TryParseExact(m.Groups[1].Value,"MM/dd/yyyy HH:mm:ss",CultureInfo.InvariantCulture,DateTimeStyles.None,out var gameTime))
+        {
+            kind="GameTime";value=gameTime.ToString("O",CultureInfo.InvariantCulture);extra=m.Groups[2].Value;
+        }
+        else if((m=Regex.Match(line,@"GameTimer utcNow:\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} start:(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}) escape:(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2})")).Success &&
+            DateTime.TryParseExact(m.Groups[1].Value,"MM/dd/yyyy HH:mm:ss",CultureInfo.InvariantCulture,DateTimeStyles.None,out var timerStart) &&
+            DateTime.TryParseExact(m.Groups[2].Value,"MM/dd/yyyy HH:mm:ss",CultureInfo.InvariantCulture,DateTimeStyles.None,out var timerEnd))
+        {
+            kind="RaidTimer";value=Math.Max(0,(timerEnd-timerStart).TotalSeconds).ToString(CultureInfo.InvariantCulture);
+        }
+        else if(timeOnly) return null;
+        else if(line.Contains("|application|MatchingCompleted:")) kind="Match";
         else if(line.Contains("|application|") && (m=Regex.Match(line,@"RaidId:([^,]+),.*Locations:([^\r\n]+)")).Success)
         {
             kind="Map"; extra=m.Groups[1].Value.Trim();
@@ -202,6 +222,22 @@ public class LogReader
                 current=new() { Boundary=ev.Time,Key=$"{Session}|{ev.Time:O}" }; raids.Add(current); continue;
             }
             if(raids.Count==0) { current=new() { Boundary=ev.Time,Key=$"{Session}|{ev.Time:O}" }; raids.Add(current); }
+            if(ev.Kind=="GameTime")
+            {
+                // A second GameDateTime is logged in the lobby after extraction. Keep the
+                // first value belonging to the active raid so it cannot overwrite raid time.
+                if(!current.Ended && current.GameDateTime==null && DateTime.TryParse(ev.Value,CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind,out var gameTime))
+                {
+                    current.GameDateTime=gameTime;
+                    if(double.TryParse(ev.Extra,NumberStyles.Float,CultureInfo.InvariantCulture,out var factor) && factor>0) current.GameTimeFactor=factor;
+                }
+                continue;
+            }
+            if(ev.Kind=="RaidTimer")
+            {
+                if(!current.Ended && current.RaidDuration==null && double.TryParse(ev.Value,NumberStyles.Float,CultureInfo.InvariantCulture,out var seconds)) current.RaidDuration=TimeSpan.FromSeconds(seconds);
+                continue;
+            }
             if(ev.Kind=="Map")
             {
                 if(current.RaidId!="" && current.RaidId!=ev.Extra)
@@ -304,6 +340,9 @@ public class LogReader
         }
         foreach(var raid in raids)
         {
+        if(raid.GameDateTime is DateTime gameTime && raid.Bosses.TryGetValue("sectantPriest",out var cultist) &&
+            cultist.Status=="Planned" && !CultistWindowOverlapsRaid(gameTime,raid.GameTimeFactor,raid.RaidDuration))
+            cultist.Status="NotPlanned";
         foreach(var boss in raid.Bosses.Values.Where(b=>b.Status=="Confirmed"))
         {
             if(raid.Ended)
@@ -316,6 +355,14 @@ public class LogReader
             foreach(var instance in raid.Pmcs.Values.SelectMany(p=>p.LifeInstances).Where(i=>i.DiedAt==null)) instance.LifeStatus="DeathUnconfirmedAtEnd";
         }
         return raids;
+    }
+    private static bool CultistWindowOverlapsRaid(DateTime gameTime,double factor,TimeSpan? raidDuration)
+    {
+        var time=gameTime.TimeOfDay;
+        if(time>=TimeSpan.FromHours(22) || time<TimeSpan.FromHours(7)) return true;
+        if(raidDuration==null || factor<=0) return false;
+        var gameSpan=TimeSpan.FromTicks((long)Math.Min(TimeSpan.MaxValue.Ticks,raidDuration.Value.Ticks*factor));
+        return gameSpan>=TimeSpan.FromHours(22)-time;
     }
     public void Reevaluate(AppSettings settings) => Raids=Rebuild(settings);
 }
