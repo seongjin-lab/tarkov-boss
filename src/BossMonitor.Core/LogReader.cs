@@ -43,7 +43,6 @@ public class PmcState
     public List<int> SpawnChances { get; set; } = [];
     public DateTime? LastPlanAt { get; set; }
     public DateTime? FirstSpawnedAt { get; set; }
-    public string FirstPosition { get; set; } = "";
     public int Count { get; set; }
     public List<BossInstance> LifeInstances { get; set; } = [];
     public int TotalWaves => PlannedWaves + NotPlannedWaves;
@@ -191,6 +190,13 @@ public class LogReader
         else if(line.Contains("|aiData|") && (m=Regex.Match(line,@"\bbot dispose:(\d+)\b")).Success)
         {kind="Dispose";botId=m.Groups[1].Value;}
         else if(line.Contains("|aiData|") && Regex.IsMatch(line,@"\bBotDied pos:\([^)]+\)")) kind="Died";
+        else if(line.Contains("|aiData|Group set boss.") &&
+            (m=Regex.Match(line,@"\bgroupName:(\S+)\s+\[Boss\]\s+botBoss\.Id:(\d+)\s+bossType:(\w+)\b")).Success)
+        {
+            // EFT 1.2 stopped emitting the later "Add enemy ... cause:initial"
+            // row for bosses. This row identifies the selected zone and bot directly.
+            kind="Zone";extra=m.Groups[1].Value;botId=m.Groups[2].Value;value=m.Groups[3].Value;
+        }
         else if(line.Contains("|aiData|Add enemy") && (m=Regex.Match(line,@"groupId:(Zone\w+)\s+\[Boss\]\s+_defWildSpawnType:(\w+)\s+cause:initial\s")).Success)
         { kind="Zone";value=m.Groups[2].Value;extra=m.Groups[1].Value; }
         if(kind=="") return null;
@@ -302,7 +308,7 @@ public class LogReader
                     {
                         pmc.LifeInstances.Add(new() {Profile=instance,BotId=ev.BotId,SpawnedAt=ev.Time,SpawnEvidence=ev.Evidence});
                         pmc.Count=pmc.LifeInstances.Count;
-                        if(pmc.FirstSpawnedAt==null){pmc.FirstSpawnedAt=ev.Time;pmc.FirstPosition=ev.Extra;}
+                        if(pmc.FirstSpawnedAt==null)pmc.FirstSpawnedAt=ev.Time;
                     }
                 }
                 continue;
@@ -348,7 +354,9 @@ public class LogReader
             if(raid.Ended)
                 foreach(var instance in boss.LifeInstances.Where(i=>i.DiedAt==null)) instance.LifeStatus="DeathUnconfirmedAtEnd";
             DateTime boundaryEnd=raids.FirstOrDefault(r=>r.Boundary>raid.Boundary)?.Boundary??DateTime.MaxValue;
-            var zones=ordered.Where(e=>e.Kind=="Zone" && e.Value.Equals(boss.Role,StringComparison.OrdinalIgnoreCase) && e.Time>=raid.Boundary && e.Time<boundaryEnd && Math.Abs((e.Time-boss.At!.Value).TotalSeconds)<=2).Select(e=>e.Extra).Distinct().ToList();
+            var zones=ordered.Where(e=>e.Kind=="Zone" && e.Value.Equals(boss.Role,StringComparison.OrdinalIgnoreCase) && e.Time>=raid.Boundary && e.Time<boundaryEnd &&
+                (e.BotId!="" ? boss.LifeInstances.Any(i=>i.BotId==e.BotId) : Math.Abs((e.Time-boss.At!.Value).TotalSeconds)<=2))
+                .Select(e=>e.Extra).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             boss.Zone=zones.Count==1?zones[0]:"";
         }
         if(raid.Ended)

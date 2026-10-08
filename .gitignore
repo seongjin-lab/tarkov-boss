@@ -11,3 +11,4 @@
 # Generated build workspace and outputs
 work/
 outputs/
+/docs/log-channel-test-notes.ko.md
