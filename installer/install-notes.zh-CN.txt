@@ -1,4 +1,4 @@
-Tarkov Boss Monitor 1.0.12
+Tarkov Boss Monitor 1.0.13
 
 用于确认《逃离塔科夫》本地 PvE 战局中首领刷新的 Windows x64 应用。
 

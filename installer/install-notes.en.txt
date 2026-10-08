@@ -1,4 +1,4 @@
-Tarkov Boss Monitor 1.0.12
+Tarkov Boss Monitor 1.0.13
 
 A Windows x64 app that detects boss spawns in official local PvE raids.
 
