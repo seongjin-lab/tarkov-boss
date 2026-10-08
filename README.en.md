@@ -4,6 +4,15 @@
 
 A Windows x64 app that detects boss spawns in official PvE raids running locally on your PC.
 
+## When it is useful
+
+- **Interchange Killa runs**: Check whether Killa is planned to spawn and actually activates. Once confirmed, use his initial zone to narrow your search.
+- **Night Factory Cultist runs**: Avoid repeatedly searching the entire map in raids where the Cultist Priest did not spawn.
+- **Boss quests and farming**: Monitor only the bosses you need on each map and distinguish raids with no planned spawn from raids still waiting for activation.
+- **Repeated local PvE raids**: See the boss name, spawn chance, detection time, initial zone, and estimated survival state in one place.
+
+`Planned` means the game log selected the boss for spawning. `Confirmed` means an actual boss activation record was detected. Initial zones and coordinates are not current positions.
+
 ## Features
 
 - Detects the current map from raid logs
