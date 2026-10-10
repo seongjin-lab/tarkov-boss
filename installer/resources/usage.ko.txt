@@ -1,6 +1,6 @@
-Tarkov Boss Monitor 1.0.13 사용법
+Tarkov Boss Monitor 1.0.14 사용법
 
-1. TarkovBossMonitor-Setup-1.0.13-win-x64.exe를 실행합니다.
+1. TarkovBossMonitor-Setup-1.0.14-win-x64.exe를 실행합니다.
 2. 자동 탐색된 게임 폴더를 확인하거나 EscapeFromTarkov.exe와 Logging.config가 있는 폴더를 직접 선택합니다.
 3. 맵별 감시 보스를 저장하고 레이드에 입장합니다. 맵은 자동으로 감지합니다.
 

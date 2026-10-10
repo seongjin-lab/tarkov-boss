@@ -197,7 +197,7 @@ public static class Catalog
     public static readonly Dictionary<string, string> Maps = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Interchange"]="인터체인지", ["bigmap"]="커스텀", ["Woods"]="우드", ["Shoreline"]="쇼어라인",
-        ["RezervBase"]="리저브", ["Lighthouse"]="라이트하우스", ["Sandbox"]="그라운드 제로",
+        ["RezervBase"]="리저브", ["Lighthouse"]="등대", ["Sandbox"]="그라운드 제로",
         ["factory4_day"]="팩토리", ["factory4_night"]="팩토리", ["laboratory"]="랩"
     };
     private static readonly Dictionary<string, string> MapsZh = new(StringComparer.OrdinalIgnoreCase)

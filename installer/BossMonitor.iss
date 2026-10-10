@@ -1,4 +1,4 @@
-#define AppVersion "1.0.13"
+#define AppVersion "1.0.14"
 
 [Setup]
 AppId={{3B92D97F-CBF0-4938-9687-B86AF284864F}

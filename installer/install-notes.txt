@@ -1,4 +1,4 @@
-Tarkov Boss Monitor 1.0.13
+Tarkov Boss Monitor 1.0.14
 
 타르코프 로컬 PvE 레이드의 보스 출현을 확인하는 Windows x64 앱입니다.
 

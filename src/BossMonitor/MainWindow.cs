@@ -41,8 +41,13 @@ public class MainWindow : Window
         Title="Tarkov Boss Monitor";Width=900;Height=700;MinWidth=620;MinHeight=450;Topmost=settings.AlwaysOnTop;Theme.WindowIcon(this);
         var root=new DockPanel {Margin=new Thickness(24)};monitor=root;Content=root;
         var header=new StackPanel();DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
-        var branding=new StackPanel {Orientation=Orientation.Horizontal};
-        branding.Children.Add(Theme.Label("BOSS MONITOR",24,Theme.Green));header.Children.Add(branding);
+        var branding=new Grid();
+        branding.ColumnDefinitions.Add(new() {Width=new GridLength(1,GridUnitType.Star)});
+        branding.ColumnDefinitions.Add(new() {Width=GridLength.Auto});
+        branding.Children.Add(Theme.Label("BOSS MONITOR",24,Theme.Green));
+        var version=Theme.Label($"v{UpdateChecker.CurrentVersion.ToString(3)}",12,Theme.Muted);
+        version.HorizontalAlignment=HorizontalAlignment.Right;version.VerticalAlignment=VerticalAlignment.Center;Grid.SetColumn(version,1);branding.Children.Add(version);
+        header.Children.Add(branding);
         raidLabel.Visibility=Visibility.Collapsed;connection.Visibility=Visibility.Collapsed;
         header.Children.Add(map);header.Children.Add(raidLabel);header.Children.Add(connection);header.Children.Add(updateBanner);
         var footer=new StackPanel();DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
@@ -216,7 +221,7 @@ public class MainWindow : Window
         roles=roles.Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(role=>StatusOrder(raid.Bosses.GetValueOrDefault(role)?.Status))
             .ThenBy(role=>Catalog.BossName(role,settings),StringComparer.CurrentCultureIgnoreCase).ToList();
-        string signature=raid.Key+raid.Ended+paused+filter.Mode+string.Join("|",roles.Select(r=>r+System.Text.Json.JsonSerializer.Serialize(raid.Bosses.GetValueOrDefault(r))))+System.Text.Json.JsonSerializer.Serialize(raid.Pmcs);
+        string signature=raid.Key+raid.Ended+paused+filter.Mode+string.Join("|",roles.Select(r=>r+System.Text.Json.JsonSerializer.Serialize(raid.Bosses.GetValueOrDefault(r))))+System.Text.Json.JsonSerializer.Serialize(raid.Pmcs)+System.Text.Json.JsonSerializer.Serialize(raid.Btr);
         if(signature==rendering)return;rendering=signature;bosses.Children.Clear();pmcs.Children.Clear();waiting.Children.Clear();
         if(raid.Map=="")
         {
@@ -224,6 +229,7 @@ public class MainWindow : Window
         }
         waiting.Visibility=Visibility.Collapsed;raidColumns.Visibility=Visibility.Visible;
         RenderPmcs(raid);
+        RenderBtr(raid);
         if(filter.Mode=="off"){bosses.Children.Add(Theme.Label(I18n.T("이 맵은 감시하지 않도록 설정되어 있습니다.","此地图已设置为不监控。"),16,Theme.Muted));FitWindowToContent();return;}
         if(roles.Count==0){bosses.Children.Add(Theme.Label(filter.Mode=="selected"?I18n.T("선택된 보스가 없습니다. 설정에서 보스를 선택해 주세요.","未选择首领，请在设置中选择。"):I18n.T("모든 보스 감시 중 · 보스 판정 기록 대기","正在监控所有首领 · 等待判定记录"),16,Theme.Muted));FitWindowToContent();return;}
         foreach(string role in roles)
@@ -291,6 +297,17 @@ public class MainWindow : Window
             }
             pmcs.Children.Add(new Border {Background=Theme.Card,BorderBrush=accent,BorderThickness=new Thickness(3,0,0,0),CornerRadius=new CornerRadius(8),Margin=new Thickness(0,0,0,8),Child=content});
         }
+    }
+    private void RenderBtr(RaidState raid)
+    {
+        if(raid.Btr is not BossState state || state.Status!="Confirmed")return;
+        var title=CompactLabel("BTR",16,Theme.Text);title.Margin=new Thickness(0,10,0,5);pmcs.Children.Add(title);
+        var content=new StackPanel {Margin=new Thickness(14,8,14,7)};
+        content.Children.Add(CompactLabel("BTR",18));
+        content.Children.Add(CompactLabel(Helpers.Status(state.Status)+(raid.Ended?I18n.T(" · 레이드 종료"," · 战局已结束"):""),15,Theme.Green));
+        if(state.At!=null)content.Children.Add(CompactLabel($"{I18n.T("기록", "记录")} {state.At:HH:mm:ss}",12,Theme.Muted));
+        content.Children.Add(CompactLabel($"{I18n.T("최초 구역", "首次区域")}: {(state.Zone==""?I18n.T("확인 불가","无法确认"):state.Zone)}",12));
+        pmcs.Children.Add(new Border {Background=Theme.Card,BorderBrush=Theme.Green,BorderThickness=new Thickness(3,0,0,0),CornerRadius=new CornerRadius(8),Margin=new Thickness(0,0,0,8),Child=content});
     }
     private void RenderWaiting(StackPanel target)
     {

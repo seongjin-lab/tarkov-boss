@@ -62,6 +62,7 @@ public class RaidState
     public TimeSpan? RaidDuration { get; set; }
     public Dictionary<string,BossState> Bosses { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string,PmcState> Pmcs { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public BossState? Btr { get; set; }
 }
 
 public class LogReader
@@ -210,7 +211,8 @@ public class LogReader
     }
     private static bool IsPmc(string role) => role.Equals("pmcBEAR",StringComparison.OrdinalIgnoreCase) || role.Equals("pmcUSEC",StringComparison.OrdinalIgnoreCase);
     private static IEnumerable<BossInstance> LifeInstances(RaidState raid)
-        => raid.Bosses.Values.SelectMany(b=>b.LifeInstances).Concat(raid.Pmcs.Values.SelectMany(p=>p.LifeInstances));
+        => raid.Bosses.Values.SelectMany(b=>b.LifeInstances).Concat(raid.Pmcs.Values.SelectMany(p=>p.LifeInstances))
+            .Concat(raid.Btr?.LifeInstances??[]);
     private List<RaidState> Rebuild(AppSettings settings)
     {
         List<RaidState> raids=[];
@@ -313,6 +315,21 @@ public class LogReader
                 }
                 continue;
             }
+            if(ev.Value.Equals("shooterBTR",StringComparison.OrdinalIgnoreCase) && !current.Ended)
+            {
+                if(ev.Kind=="Active")
+                {
+                    var btr=current.Btr??=new() {Role=ev.Value};
+                    if(btr.Status!="Confirmed") {btr.At=ev.Time;btr.Position=ev.Extra;btr.Profile=ev.Id;btr.Evidence=ev.Evidence;}
+                    btr.Status="Confirmed";
+                    string instance=ev.Id==""?ev.Time.ToString("O"):ev.Id;
+                    if(!btr.Instances.Contains(instance))btr.Instances.Add(instance);
+                    if(!btr.LifeInstances.Any(i=>i.Profile==instance))
+                        btr.LifeInstances.Add(new() {Profile=instance,BotId=ev.BotId,SpawnedAt=ev.Time,SpawnEvidence=ev.Evidence});
+                    btr.Count=btr.Instances.Count;
+                }
+                continue;
+            }
             if(!Catalog.IsBoss(ev.Value,settings) || current.Ended) continue;
             if(ev.Kind=="Plan")
             {
@@ -358,6 +375,16 @@ public class LogReader
                 (e.BotId!="" ? boss.LifeInstances.Any(i=>i.BotId==e.BotId) : Math.Abs((e.Time-boss.At!.Value).TotalSeconds)<=2))
                 .Select(e=>e.Extra).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             boss.Zone=zones.Count==1?zones[0]:"";
+        }
+        if(raid.Btr is BossState btr)
+        {
+            if(raid.Ended)
+                foreach(var instance in btr.LifeInstances.Where(i=>i.DiedAt==null)) instance.LifeStatus="DeathUnconfirmedAtEnd";
+            DateTime boundaryEnd=raids.FirstOrDefault(r=>r.Boundary>raid.Boundary)?.Boundary??DateTime.MaxValue;
+            var zones=ordered.Where(e=>e.Kind=="Zone" && e.Value.Equals("shooterBTR",StringComparison.OrdinalIgnoreCase) &&
+                e.Time>=raid.Boundary && e.Time<boundaryEnd && e.BotId!="" && btr.LifeInstances.Any(i=>i.BotId==e.BotId))
+                .Select(e=>e.Extra).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            btr.Zone=zones.Count==1?zones[0]:"";
         }
         if(raid.Ended)
             foreach(var instance in raid.Pmcs.Values.SelectMany(p=>p.LifeInstances).Where(i=>i.DiedAt==null)) instance.LifeStatus="DeathUnconfirmedAtEnd";
