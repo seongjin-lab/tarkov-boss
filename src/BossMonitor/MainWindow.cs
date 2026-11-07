@@ -5,6 +5,7 @@ namespace BossMonitor;
 public class MainWindow : Window
 {
     private const double DefaultWindowWidth=900,DefaultWindowHeight=700;
+    private const string SupportPageUrl = "https://buymeacoffee.com/wjdtjdwls9p";
     private static readonly TimeSpan EndedRaidDisplayTime=TimeSpan.FromMinutes(10);
     private static readonly string[] PmcRoles=["pmcBEAR","pmcUSEC"];
     private AppSettings settings=AppSettings.Load();
@@ -18,6 +19,7 @@ public class MainWindow : Window
     private readonly StackPanel eventMobs=new();
     private readonly StackPanel eventSection=new() {Margin=new Thickness(0,14,0,0),Visibility=Visibility.Collapsed};
     private readonly StackPanel pmcs=new();
+    private readonly TextBlock pmcHeading = CompactLabel("AI PMC", 16, Theme.Text);
     private readonly StackPanel waiting=new();
     private readonly Grid raidColumns=new();
     private readonly ScrollViewer monitorScroll=new() {VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false};
@@ -59,11 +61,9 @@ public class MainWindow : Window
         header.Children.Add(branding);
         raidLabel.Visibility=Visibility.Collapsed;connection.Visibility=Visibility.Collapsed;
         header.Children.Add(CreateRaidHeader());header.Children.Add(connection);header.Children.Add(updateBanner);
-        var footer=new StackPanel();DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
-        var actions=new WrapPanel();
-        pause.Click+=(s,e)=>TogglePause();actions.Children.Add(pause);
-        actions.Children.Add(Theme.Action(I18n.T("설정","设置"),(s,e)=>OpenSettings()));
-        actions.Children.Add(Theme.Action(I18n.T("트레이로","最小化到托盘"),(s,e)=>HideToTray()));footer.Children.Add(actions);
+        var footer = CreateMonitorFooter();
+        DockPanel.SetDock(footer, Dock.Bottom);
+        root.Children.Add(footer);
         BuildRaidColumns();
         var monitorBody=new Grid {Margin=new Thickness(0,8,0,6)};
         monitorBody.Children.Add(raidColumns);monitorBody.Children.Add(waiting);
@@ -89,6 +89,84 @@ public class MainWindow : Window
         Application.Current.SessionEnding+=(s,e)=>{exitRequested=true;};
         Closed+=(s,e)=>{closed=true;timer.Stop();tray.Visible=false;tray.Dispose();};
     }
+    private DockPanel CreateMonitorFooter()
+    {
+        var footer = new DockPanel();
+        var supportLabel = I18n.T("개발자에게 후원하기", "赞助开发者");
+        var ink = Theme.Color("#563200");
+        var cup = new System.Windows.Shapes.Path
+        {
+            // The heart above the cup stays readable in the small footer button.
+            Data = Geometry.Parse("M 4,10 H 17 V 14 A 5,5 0 0 1 12,19 H 9 A 5,5 0 0 1 4,14 Z M 17,11 H 19 A 2.5,2.5 0 0 1 19,16 H 17 M 3,22 H 19 M 10.5,7 C 4,3 8,0 10.5,3 C 13,0 17,3 10.5,7 Z"),
+            Stroke = ink,
+            StrokeThickness = 1.7,
+            StrokeLineJoin = PenLineJoin.Round,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            Stretch = Stretch.Uniform,
+            Width = 21,
+            Height = 21,
+        };
+        var caption = new TextBlock
+        {
+            Text = supportLabel,
+            Foreground = ink,
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var reveal = new Border { Child = caption, Width = 0, ClipToBounds = true };
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(reveal);
+        content.Children.Add(cup);
+        var supportStyle = new Style(typeof(Button), Application.Current.TryFindResource(typeof(Button)) as Style);
+        supportStyle.Setters.Add(new Setter(Control.BackgroundProperty, Theme.Color("#F6C35E")));
+        var supportHover = new Trigger { Property = IsMouseOverProperty, Value = true };
+        supportHover.Setters.Add(new Setter(Control.BackgroundProperty, Theme.Color("#EDAA3E")));
+        supportStyle.Triggers.Add(supportHover);
+        var support = new Button
+        {
+            Content = content,
+            Style = supportStyle,
+            Padding = new Thickness(9, 6, 9, 6),
+            VerticalAlignment = VerticalAlignment.Bottom,
+        };
+        System.Windows.Automation.AutomationProperties.SetName(support, supportLabel);
+        void AnimateCaption(double width)
+        {
+            var duration = TimeSpan.FromMilliseconds(SystemParameters.ClientAreaAnimation ? 160 : 0);
+            reveal.BeginAnimation(WidthProperty, new DoubleAnimation(reveal.Width, width, duration));
+        }
+        support.MouseEnter += (s, e) =>
+        {
+            caption.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            AnimateCaption(caption.DesiredSize.Width);
+        };
+        support.MouseLeave += (s, e) => AnimateCaption(0);
+        support.Click += (s, e) => OpenSupportPage();
+        DockPanel.SetDock(support, Dock.Right);
+        footer.Children.Add(support);
+
+        var actions = new WrapPanel();
+        pause.Click += (s, e) => TogglePause();
+        actions.Children.Add(pause);
+        actions.Children.Add(Theme.Action(I18n.T("설정", "设置"), (s, e) => OpenSettings()));
+        actions.Children.Add(Theme.Action(I18n.T("트레이로", "最小化到托盘"), (s, e) => HideToTray()));
+        footer.Children.Add(actions);
+        return footer;
+    }
+
+    private void OpenSupportPage()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(SupportPageUrl) { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            MessageBox.Show(this, I18n.T("후원 페이지를 열 수 없습니다.", "无法打开赞助页面。"), "Tarkov Boss Monitor");
+        }
+    }
+
     private Grid CreateRaidHeader()
     {
         var header=new Grid();
@@ -104,16 +182,16 @@ public class MainWindow : Window
     {
         raidColumns.ColumnDefinitions.Add(new() {Width=new GridLength(1,GridUnitType.Star)});
         raidColumns.ColumnDefinitions.Add(new() {Width=new GridLength(1,GridUnitType.Star)});
-        var bossColumn=MonitorColumn(I18n.T("보스","首领"),bosses,new Thickness(0,0,8,0));
+        var bossColumn=MonitorColumn(CompactLabel(I18n.T("보스","首领"),16,Theme.Text),bosses,new Thickness(0,0,8,0));
         eventSection.Children.Add(CompactLabel(I18n.T("이벤트","活动"),16,Theme.Text));
         eventSection.Children.Add(eventMobs);bossColumn.Children.Add(eventSection);
-        var pmcColumn=MonitorColumn("AI PMC",pmcs,new Thickness(8,0,0,0));Grid.SetColumn(pmcColumn,1);
+        var pmcColumn=MonitorColumn(pmcHeading,pmcs,new Thickness(8,0,0,0));Grid.SetColumn(pmcColumn,1);
         raidColumns.Children.Add(bossColumn);raidColumns.Children.Add(pmcColumn);
     }
-    private static StackPanel MonitorColumn(string title,StackPanel panel,Thickness margin)
+    private static StackPanel MonitorColumn(TextBlock heading,StackPanel panel,Thickness margin)
     {
         var column=new StackPanel {Margin=margin};
-        column.Children.Add(CompactLabel(title,16,Theme.Text));
+        column.Children.Add(heading);
         column.Children.Add(panel);
         return column;
     }
@@ -432,6 +510,11 @@ public class MainWindow : Window
             .OrderBy(state=>StatusOrder(state.Status))
             .ThenBy(state=>state.Role.Equals("pmcBEAR",StringComparison.OrdinalIgnoreCase)?0:1)
             .ToList();
+        int confirmedSpawns = states.Sum(state => state.Count);
+        string headingFormat = raid.Ended
+            ? I18n.T("AI PMC (총 {0}명)", "AI PMC（共 {0} 人）")
+            : I18n.T("AI PMC (현재 총 {0}명)", "AI PMC（当前共 {0} 人）");
+        pmcHeading.Text = string.Format(headingFormat, confirmedSpawns);
         if(states.All(p=>p.TotalWaves==0 && p.Count==0))
         {
             pmcs.Children.Add(Theme.Label(I18n.T("AI PMC 웨이브 기록 대기","等待 AI PMC 波次记录"),16,Theme.Muted));
@@ -456,12 +539,8 @@ public class MainWindow : Window
                 AddPmcDifficultySummary(content,impossible,alive,raid.Ended);
             }
             // PMC_DIFFICULTY_END
-            string additional=raid.Ended
-                ? I18n.T("추가 스폰 감시 종료","追加刷新监测已结束")
-                : state.AdditionalPlannedWaves>0
-                    ? I18n.T("추가 스폰 예정","追加刷新已计划")
-                    : I18n.T("추가 스폰 감시 중","正在监测追加刷新");
-            content.Children.Add(CompactLabel(additional,13,state.AdditionalPlannedWaves>0?Theme.Amber:Theme.Muted));
+            if(!raid.Ended && state.AdditionalPlannedWaves>0)
+                content.Children.Add(CompactLabel(I18n.T("추가 스폰 예정","追加刷新已计划"),13,Theme.Amber));
             if(state.Count>0)
                 content.Children.Add(CompactLabel($"{I18n.T("첫 활성화","首次激活")} {state.FirstSpawnedAt:HH:mm:ss}",12));
             pmcs.Children.Add(HighlightCard(MonitorCard(content,accent,state.AdditionalPlannedWaves==0 && IsInactiveCard(state.Status,state.LifeInstances)),$"pmc:{state.Role}"));
@@ -469,11 +548,10 @@ public class MainWindow : Window
     }
     private static void AddPmcDifficultySummary(StackPanel content,int impossible,int alive,bool ended)
     {
-        if(ended || impossible==0)
+        if(impossible==0)return;
+        if(ended)
         {
-            string format=ended
-                ? I18n.T("Impossible · 종료 시 사망 미확인 {0}명","Impossible · 结束时死亡未确认 {0} 人")
-                : I18n.T("Impossible · 생존 추정 {0}명","Impossible · 推测存活 {0} 人");
+            string format=I18n.T("Impossible · 종료 시 사망 미확인 {0}명","Impossible · 结束时死亡未确认 {0} 人");
             content.Children.Add(CompactLabel(string.Format(format,impossible),13,Theme.Muted));
             return;
         }
@@ -505,9 +583,6 @@ public class MainWindow : Window
         content.Children.Add(CompactLabel(name,18));
         if(state.Count==0)content.Children.Add(CompactLabel(I18n.T("스폰 미확인","未检测到刷新"),14,Theme.Muted));
         AddLifeSummary(content,alive,dead,raid.Ended);
-        content.Children.Add(CompactLabel(raid.Ended
-            ? I18n.T("추가 스폰 감시 종료","追加刷新监测已结束")
-            : I18n.T("추가 스폰 감시 중","正在监测追加刷新"),13,Theme.Muted));
         if(state.At!=null)content.Children.Add(CompactLabel($"{I18n.T("첫 활성화","首次激活")} {state.At:HH:mm:ss}",12));
         pmcs.Children.Add(HighlightCard(MonitorCard(content,alive>0?Theme.Green:Theme.Muted,IsInactiveCard(state.Status,state.LifeInstances)),"scavs"));
     }
@@ -521,10 +596,10 @@ public class MainWindow : Window
         // Show event bosses when a plan or an actual activation is recorded;
         // their presence is evidence-based rather than a fixed map assumption.
         if(raid.InfectedTagilla.Status!="Unknown" || raid.InfectedTagilla.Count>0)
-            RenderEventMobCard(raid,raid.InfectedTagilla,I18n.T("감염된 타길라","感染版塔吉拉"),monitorWaves:false);
+            RenderEventMobCard(raid,raid.InfectedTagilla,I18n.T("감염된 타길라","感染版塔吉拉"));
         eventSection.Visibility=eventMobs.Children.Count>0?Visibility.Visible:Visibility.Collapsed;
     }
-    private void RenderEventMobCard(RaidState raid,BossState state,string name,bool halloween=false,bool monitorWaves=true)
+    private void RenderEventMobCard(RaidState raid,BossState state,string name,bool halloween=false)
     {
         int dead=state.LifeInstances.Count(i=>i.LifeStatus=="DeadConfirmed" && i.DiedAt!=null);
         int alive=state.Count-dead;
@@ -550,9 +625,6 @@ public class MainWindow : Window
             AddLifeSummary(content,alive,dead,raid.Ended,halloween);
         }
         if(state.SpawnChance is int chance)content.Children.Add(CompactLabel($"{I18n.T("스폰 확률","刷新概率")} {chance}%",13,muted));
-        if(monitorWaves)content.Children.Add(CompactLabel(raid.Ended
-            ? I18n.T("추가 스폰 감시 종료","追加刷新监测已结束")
-            : I18n.T("추가 스폰 감시 중","正在监测追加刷新"),13,muted));
         if(state.At!=null)content.Children.Add(CompactLabel($"{(state.Count>0?I18n.T("첫 활성화","首次激活"):I18n.T("기록","记录"))} {state.At:HH:mm:ss}",12,text));
         bool inactive=IsInactiveCard(state.Status,state.LifeInstances);
         if(!halloween){eventMobs.Children.Add(HighlightCard(MonitorCard(content,alive>0?Theme.Green:state.Status=="Planned"?Theme.Amber:Theme.Muted,inactive),$"event:{state.Role}"));return;}

@@ -67,6 +67,10 @@ Windows 10 이상, .NET 8 SDK, Inno Setup 6가 필요합니다.
 
 PR을 보내기 전에 [기여 가이드와 코딩 컨벤션](CONTRIBUTING.md)을 확인해 주세요. AI 도구용 지침은 [AGENTS.md](AGENTS.md)와 [CLAUDE.md](CLAUDE.md)에 있습니다.
 
+## 개발자에게 커피 한 잔
+
+[개발자에게 커피 한 잔](https://buymeacoffee.com/wjdtjdwls9p)
+
 ## 라이선스
 
 이 프로젝트는 [MIT 라이선스](LICENSE)를 따릅니다.

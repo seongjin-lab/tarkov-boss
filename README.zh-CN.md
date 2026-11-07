@@ -33,7 +33,7 @@
 
 ## 界面
 
-<img src="./screenshot_2.png" alt="Tarkov Boss Monitor 首领、活动与 AI 监控界面" width="600">
+<img src="./screenshot_2.zh-CN.png" alt="Tarkov Boss Monitor 首领、活动与 AI 监控界面" width="600">
 
 ## 启动器修复警告
 
@@ -71,6 +71,10 @@
 ## 参与贡献
 
 提交 PR 前，请阅读[贡献指南与编码规范](CONTRIBUTING.md)（韩文）。AI 编程工具的说明位于 [AGENTS.md](AGENTS.md) 和 [CLAUDE.md](CLAUDE.md)。
+
+## 请开发者喝杯咖啡
+
+[请开发者喝杯咖啡](https://buymeacoffee.com/wjdtjdwls9p)
 
 ## 许可证
 

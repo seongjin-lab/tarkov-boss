@@ -30,7 +30,7 @@ The installer is not code-signed, so Windows SmartScreen may display a warning.
 
 ## Screenshot
 
-<img src="./screenshot_2.png" alt="Tarkov Boss Monitor boss, event, and AI monitoring screen" width="600">
+<img src="./screenshot_2.en.png" alt="Tarkov Boss Monitor boss, event, and AI monitoring screen" width="600">
 
 ## Launcher repair warning
 
@@ -66,6 +66,10 @@ Run `.\test.ps1` to execute the regression tests without installing the game. Se
 ## Contributing
 
 Before opening a PR, read the [contribution guide and coding conventions](CONTRIBUTING.md) (Korean). Instructions for coding agents are in [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md).
+
+## Buy the developer a coffee
+
+[Buy the developer a coffee](https://buymeacoffee.com/wjdtjdwls9p)
 
 ## License
 

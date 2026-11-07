@@ -45,8 +45,11 @@ public class UiRegressionTests
                 threat.LifeStatus="DeadConfirmed";threat.DiedAt=new(2000,1,1);
                 Render(window,raid);
                 Assert.DoesNotContain(Risk(1),BearLabels());
-                Assert.Contains(string.Format(I18n.T("Impossible · 생존 추정 {0}명","Impossible · 推测存活 {0} 人"),0),BearLabels());
+                Assert.DoesNotContain(BearLabels(),text=>text.Contains("Impossible"));
                 Assert.DoesNotContain(Subset(2),BearLabels());
+                raid.Ended=true;Render(window,raid);
+                Assert.DoesNotContain(BearLabels(),text=>text.Contains("Impossible"));
+                raid.Ended=false;
 
                 bear.LifeInstances.Add(new() {PmcDifficulty="impossible"});
                 Render(window,raid);
@@ -190,6 +193,7 @@ public class UiRegressionTests
                 Assert.True(left.Children.IndexOf(events) > left.Children.IndexOf(Field<StackPanel>(window, "bosses")));
                 Assert.Equal(map!="laboratory",Text(eventPanel).Contains(infected));
                 Assert.Equal(map == "laboratory" ? Visibility.Collapsed : Visibility.Visible, events.Visibility);
+                Assert.DoesNotContain(I18n.T("추가 스폰 감시 중","正在监测追加刷新"),Text(panel).Concat(Text(eventPanel)));
                 if (language == "en-US")
                     Assert.DoesNotContain(labels.Concat(Text(eventPanel)), t => System.Text.RegularExpressions.Regex.IsMatch(t, "[가-힣\u4e00-\u9fff]"));
 
@@ -197,11 +201,11 @@ public class UiRegressionTests
                 raid.Pmcs["pmcBEAR"].LifeInstances[0].LifeStatus = "DeadConfirmed";
                 raid.Pmcs["pmcBEAR"].LifeInstances[0].DiedAt = new(2000, 1, 1);
                 Render(window, raid);
-                Assert.EndsWith(language.StartsWith("ko") ? "0명" : language.StartsWith("zh") ? "0 人" : "0",
-                    Assert.Single(Text(panel).Where(t => t.Contains("Impossible"))));
+                Assert.DoesNotContain(Text(panel),t=>t.Contains("Impossible"));
+                Assert.DoesNotContain(I18n.T("추가 스폰 감시 종료","追加刷新监测已结束"),Text(panel).Concat(Text(eventPanel)));
                 raid.Ended = true;
                 Render(window, raid);
-                Assert.Contains(Text(panel), t => t.StartsWith("Impossible") && t.Contains(I18n.IsChinese ? "结束时" : I18n.IsKorean ? "종료 시" : "raid end"));
+                Assert.DoesNotContain(Text(panel),t=>t.Contains("Impossible"));
             }
             finally { Environment.SetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE", previous); }
         });
@@ -325,7 +329,15 @@ public class UiRegressionTests
                 IEnumerable<string> BearLabels() => Text(panel.Children.OfType<Border>().Single(card => Text(card).Contains("BEAR")));
                 raid.Pmcs["pmcBEAR"] = bear;
                 raid.Pmcs["pmcUSEC"] = new() { Role = "pmcUSEC", NotPlannedWaves = 1 };
+                var pmcHeading = Field<TextBlock>(window, "pmcHeading");
+                string ExpectedHeading(int count) => language switch
+                {
+                    "en-US" => $"AI PMC (current total {count})",
+                    "zh-CN" => $"AI PMC（当前共 {count} 人）",
+                    _ => $"AI PMC (현재 총 {count}명)",
+                };
                 Render(window, raid);
+                Assert.Equal(ExpectedHeading(0), pmcHeading.Text);
                 Assert.Contains(I18n.T("스폰 예정", "计划刷新"), Text(panel));
                 Assert.Contains(I18n.T("스폰 예정 없음", "未计划刷新"),Text(panel));
                 Assert.DoesNotContain(I18n.T("초기 스폰 예정", "初始刷新已计划"), Text(panel));
@@ -334,11 +346,27 @@ public class UiRegressionTests
                 Render(window, raid);
                 Assert.Contains(I18n.T("스폰 미확인", "未检测到刷新"), BearLabels());
                 bear.LifeInstances.Add(new());
+                raid.Pmcs["pmcUSEC"].LifeInstances.Add(new() { LifeStatus = "DeadConfirmed", DiedAt = new(2000, 1, 1) });
+                raid.Scavs.LifeInstances.Add(new());
                 Render(window, raid);
+                Assert.Equal(ExpectedHeading(2), pmcHeading.Text);
                 Assert.DoesNotContain(I18n.T("스폰 미확인", "未检测到刷新"), BearLabels());
                 Assert.DoesNotContain(I18n.T("스폰 예정", "计划刷新"), Text(panel));
                 Assert.DoesNotContain(I18n.T("초기 스폰", "初始刷新"), Text(panel));
                 Assert.Contains(Text(panel), t => t.Contains(I18n.T("생존 추정", "推测存活")));
+                bear.AdditionalPlannedWaves=1;
+                Render(window,raid);
+                Assert.Contains(I18n.T("추가 스폰 예정","追加刷新已计划"),BearLabels());
+                raid.Ended=true;
+                Render(window,raid);
+                Assert.Equal(language switch
+                {
+                    "en-US" => "AI PMC (total 2)",
+                    "zh-CN" => "AI PMC（共 2 人）",
+                    _ => "AI PMC (총 2명)",
+                }, pmcHeading.Text);
+                Assert.DoesNotContain(I18n.T("추가 스폰 예정","追加刷新已计划"),BearLabels());
+                Assert.DoesNotContain(I18n.T("추가 스폰 감시 종료","追加刷新监测已结束"),Text(panel));
             }
             finally { Environment.SetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE", previous); }
         });
@@ -353,7 +381,7 @@ public class UiRegressionTests
         var panel = new StackPanel();
         var settings = new AppSettings();
         settings.Maps[map] = new() { Mode = filter };
-        Set("settings", settings); Set("pmcs", panel); Set("bosses", new StackPanel());
+        Set("settings", settings); Set("pmcs", panel); Set("pmcHeading", new TextBlock()); Set("bosses", new StackPanel());
         Set("waiting", new StackPanel()); Set("raidColumns", new Grid());
         Set("eventMobs", new StackPanel()); Set("eventSection", new StackPanel());
         Set("map", new TextBlock()); Set("raidLabel", new TextBlock());
