@@ -5,9 +5,9 @@ namespace BossMonitor;
 public class MainWindow : Window
 {
     private const double DefaultWindowWidth=900,DefaultWindowHeight=700;
+    private const string PmcTitle = "AI PMC";
     private const string SupportPageUrl = "https://buymeacoffee.com/wjdtjdwls9p";
     private static readonly TimeSpan EndedRaidDisplayTime=TimeSpan.FromMinutes(10);
-    private static readonly string[] PmcRoles=["pmcBEAR","pmcUSEC"];
     private AppSettings settings=AppSettings.Load();
     private readonly LogReader reader=new();
     private readonly DispatcherTimer timer=new() {Interval=TimeSpan.FromSeconds(1)};
@@ -19,7 +19,6 @@ public class MainWindow : Window
     private readonly StackPanel eventMobs=new();
     private readonly StackPanel eventSection=new() {Margin=new Thickness(0,14,0,0),Visibility=Visibility.Collapsed};
     private readonly StackPanel pmcs=new();
-    private readonly TextBlock pmcHeading = CompactLabel("AI PMC", 16, Theme.Text);
     private readonly StackPanel waiting=new();
     private readonly Grid raidColumns=new();
     private readonly ScrollViewer monitorScroll=new() {VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Focusable=false};
@@ -182,16 +181,16 @@ public class MainWindow : Window
     {
         raidColumns.ColumnDefinitions.Add(new() {Width=new GridLength(1,GridUnitType.Star)});
         raidColumns.ColumnDefinitions.Add(new() {Width=new GridLength(1,GridUnitType.Star)});
-        var bossColumn=MonitorColumn(CompactLabel(I18n.T("보스","首领"),16,Theme.Text),bosses,new Thickness(0,0,8,0));
+        var bossColumn=MonitorColumn(I18n.T("보스","首领"),bosses,new Thickness(0,0,8,0));
         eventSection.Children.Add(CompactLabel(I18n.T("이벤트","活动"),16,Theme.Text));
         eventSection.Children.Add(eventMobs);bossColumn.Children.Add(eventSection);
-        var pmcColumn=MonitorColumn(pmcHeading,pmcs,new Thickness(8,0,0,0));Grid.SetColumn(pmcColumn,1);
+        var pmcColumn=MonitorColumn(PmcTitle,pmcs,new Thickness(8,0,0,0));Grid.SetColumn(pmcColumn,1);
         raidColumns.Children.Add(bossColumn);raidColumns.Children.Add(pmcColumn);
     }
-    private static StackPanel MonitorColumn(TextBlock heading,StackPanel panel,Thickness margin)
+    private static StackPanel MonitorColumn(string title,StackPanel panel,Thickness margin)
     {
         var column=new StackPanel {Margin=margin};
-        column.Children.Add(heading);
+        column.Children.Add(CompactLabel(title,16,Theme.Text));
         column.Children.Add(panel);
         return column;
     }
@@ -505,46 +504,37 @@ public class MainWindow : Window
     private static int StatusOrder(string? status)=>status switch {"Confirmed"=>0,"Planned"=>1,"NotPlanned"=>2,_=>3};
     private void RenderPmcs(RaidState raid)
     {
-        var states=PmcRoles
-            .Select(role=>raid.Pmcs.GetValueOrDefault(role)??new PmcState {Role=role})
-            .OrderBy(state=>StatusOrder(state.Status))
-            .ThenBy(state=>state.Role.Equals("pmcBEAR",StringComparison.OrdinalIgnoreCase)?0:1)
-            .ToList();
-        int confirmedSpawns = states.Sum(state => state.Count);
-        string headingFormat = raid.Ended
-            ? I18n.T("AI PMC (총 {0}명)", "AI PMC（共 {0} 人）")
-            : I18n.T("AI PMC (현재 총 {0}명)", "AI PMC（当前共 {0} 人）");
-        pmcHeading.Text = string.Format(headingFormat, confirmedSpawns);
-        if(states.All(p=>p.TotalWaves==0 && p.Count==0))
+        var pmc = PmcCardSummary.From(raid);
+        if (pmc.Count == 0 && !pmc.HasWaveRecords)
         {
-            pmcs.Children.Add(Theme.Label(I18n.T("AI PMC 웨이브 기록 대기","等待 AI PMC 波次记录"),16,Theme.Muted));
+            pmcs.Children.Add(Theme.Label(I18n.T("AI PMC 웨이브 기록 대기", "等待 AI PMC 波次记录"), 16, Theme.Muted));
             return;
         }
-        foreach(var state in states)
+
+        Brush accent = pmc.Status == "Planned" ? Theme.Amber : pmc.Alive > 0 ? Theme.Green : Theme.Muted;
+        var content = new StackPanel { Margin = new Thickness(14, 8, 14, 7) };
+        content.Children.Add(CompactLabel(PmcTitle, 18));
+        if (pmc.Count > 0)
         {
-            int dead=state.LifeInstances.Count(i=>i.LifeStatus=="DeadConfirmed" && i.DiedAt!=null);
-            int alive=state.Count-dead;
-            Brush accent=state.Count>0?(alive>0?Theme.Green:Theme.Muted):state.Status=="Planned"?Theme.Amber:Theme.Muted;
-            var content=new StackPanel {Margin=new Thickness(14,8,14,7)};
-            content.Children.Add(CompactLabel(state.Role.Equals("pmcBEAR",StringComparison.OrdinalIgnoreCase)?"BEAR":"USEC",18));
-            if(state.Count>0)
-                AddLifeSummary(content,alive,dead,raid.Ended);
-            else
-                content.Children.Add(CompactLabel((state.Status=="Unknown"?I18n.T("스폰 미확인","未检测到刷新"):Helpers.Status(state.Status))
-                    +(raid.Ended?I18n.T(" · 레이드 종료"," · 战局已结束"):""),15,accent));
+            AddLifeSummary(content, pmc.Alive, pmc.Dead, raid.Ended);
             // PMC_DIFFICULTY_BEGIN: estimated surviving impossible-difficulty PMCs.
-            if(state.Count>0)
-            {
-                int impossible=state.LifeInstances.Count(i=>i.PmcDifficulty=="impossible" && (i.LifeStatus!="DeadConfirmed" || i.DiedAt==null));
-                AddPmcDifficultySummary(content,impossible,alive,raid.Ended);
-            }
+            AddPmcDifficultySummary(content, pmc.Impossible, pmc.Alive, raid.Ended);
             // PMC_DIFFICULTY_END
-            if(!raid.Ended && state.AdditionalPlannedWaves>0)
-                content.Children.Add(CompactLabel(I18n.T("추가 스폰 예정","追加刷新已计划"),13,Theme.Amber));
-            if(state.Count>0)
-                content.Children.Add(CompactLabel($"{I18n.T("첫 활성화","首次激活")} {state.FirstSpawnedAt:HH:mm:ss}",12));
-            pmcs.Children.Add(HighlightCard(MonitorCard(content,accent,state.AdditionalPlannedWaves==0 && IsInactiveCard(state.Status,state.LifeInstances)),$"pmc:{state.Role}"));
         }
+        else
+        {
+            string status = pmc.Status == "Unknown" ? I18n.T("스폰 미확인", "未检测到刷新") : Helpers.Status(pmc.Status);
+            string ended = raid.Ended ? I18n.T(" · 레이드 종료", " · 战局已结束") : "";
+            content.Children.Add(CompactLabel(status + ended, 15, accent));
+        }
+
+        bool additionalPlanned = !raid.Ended && pmc.AdditionalSpawnPlanned;
+        if (additionalPlanned)
+            content.Children.Add(CompactLabel(I18n.T("추가 스폰 예정", "追加刷新已计划"), 13, Theme.Amber));
+        if (pmc.FirstSpawnedAt is DateTime firstSpawnedAt)
+            content.Children.Add(CompactLabel($"{I18n.T("첫 활성화", "首次激活")} {firstSpawnedAt:HH:mm:ss}", 12));
+        bool inactive = !additionalPlanned && (pmc.Status == "NotPlanned" || (pmc.Count > 0 && pmc.Alive == 0));
+        pmcs.Children.Add(HighlightCard(MonitorCard(content, accent, inactive), PmcCardSummary.CardKey));
     }
     private static void AddPmcDifficultySummary(StackPanel content,int impossible,int alive,bool ended)
     {

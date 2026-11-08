@@ -43,11 +43,8 @@ internal sealed class CardChangeTracker
     private static IEnumerable<(string Key,Snapshot State)> Snapshots(RaidState raid)
     {
         foreach(var (role,state) in raid.Bosses)yield return ($"boss:{role}",Of(state));
-        foreach(var role in new[]{"pmcBEAR","pmcUSEC"})
-        {
-            var state=raid.Pmcs.GetValueOrDefault(role)??new PmcState();
-            yield return ($"pmc:{role}",new(state.Status,state.Count,Dead(state.LifeInstances),state.PlannedWaves));
-        }
+        var pmc = PmcCardSummary.From(raid);
+        yield return (PmcCardSummary.CardKey, new(pmc.Status, pmc.Count, pmc.Dead, pmc.PlannedWaves));
         foreach(var (role,state) in raid.SpecialAis)yield return ($"special:{role}",Of(state));
         yield return ("scavs",Of(raid.Scavs));
         yield return ("event:infectedScreamer",Of(raid.InfectedScreamer));

@@ -70,14 +70,20 @@ public class CardChangeTrackerTests
     }
 
     [Fact]
-    public void AdditionalPmcWavesHighlightEvenAfterActivation()
+    public void BothPmcFactionsHighlightTheSameCard()
     {
         var tracker=new CardChangeTracker();var raid=Raid();
         raid.Pmcs["pmcBEAR"]=new() {Role="pmcBEAR",PlannedWaves=1,LifeInstances=[new()]};
+        raid.Pmcs["pmcUSEC"]=new() {Role="pmcUSEC"};
         tracker.Observe(raid,Now);
-        raid.Pmcs["pmcBEAR"].PlannedWaves++;
-        raid.Pmcs["pmcBEAR"].AdditionalPlannedWaves++;
+        raid.Pmcs["pmcUSEC"].PlannedWaves++;
+        raid.Pmcs["pmcUSEC"].AdditionalPlannedWaves++;
         tracker.Observe(raid,Now.AddSeconds(1));
-        Assert.Equal(CardChangeTracker.ChangeKind.Planned,tracker.Recent("pmc:pmcBEAR",Now.AddSeconds(1))!.Kind);
+        Assert.Equal(CardChangeTracker.ChangeKind.Planned,tracker.Recent("pmc",Now.AddSeconds(1))!.Kind);
+        var bear = raid.Pmcs["pmcBEAR"].LifeInstances[0];
+        bear.LifeStatus = "DeadConfirmed";
+        bear.DiedAt = Now.DateTime;
+        tracker.Observe(raid,Now.AddSeconds(2));
+        Assert.Equal(CardChangeTracker.ChangeKind.Death,tracker.Recent("pmc",Now.AddSeconds(2))!.Kind);
     }
 }

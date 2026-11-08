@@ -27,38 +27,47 @@ public class UiRegressionTests
                 var (window,panel)=CreateRenderer("factory4_day","all");
                 var raid=new RaidState {Map="factory4_day",Key="impossible-threat"};
                 var threat=new BossInstance {PmcDifficulty="impossible"};
+                var usecThreat=new BossInstance {PmcDifficulty="impossible"};
                 var bear=new PmcState
                 {
                     Role="pmcBEAR",
-                    LifeInstances=[threat,new(),new(),new() {PmcDifficulty="impossible",LifeStatus="DeadConfirmed",DiedAt=new(2000,1,1)},new() {LifeStatus="DeadConfirmed",DiedAt=new(2000,1,1)}]
+                    LifeInstances=[threat,new(),new() {PmcDifficulty="impossible",LifeStatus="DeadConfirmed",DiedAt=new(2000,1,1)}]
                 };
                 raid.Pmcs["pmcBEAR"]=bear;
+                raid.Pmcs["pmcUSEC"]=new()
+                {
+                    Role="pmcUSEC",
+                    LifeInstances=[usecThreat,new(),new() {LifeStatus="DeadConfirmed",DiedAt=new(2000,1,1)}]
+                };
                 string Risk(int count)=>string.Format(I18n.T("Impossible {0}명","Impossible {0} 人"),count);
                 string Subset(int count)=>string.Format(I18n.T("전체 생존 추정 {0}명에 포함","已计入推测存活的 {0} 人"),count);
-                IEnumerable<string> BearLabels()=>Text(panel.Children.OfType<Border>().Single(card=>Text(card).Contains("BEAR")));
+                IEnumerable<string> PmcLabels()=>Text(Assert.Single(panel.Children.Cast<UIElement>().TakeWhile(child=>child is Border)));
                 Render(window,raid);
-                Assert.Contains(Risk(1),BearLabels());
-                Assert.Contains(Subset(3),BearLabels());
-                Assert.Contains(BearLabels(),text=>text.Contains($"{I18n.T("생존 추정","推测存活")} 3") && text.Contains($"{I18n.T("사망 확인","已确认死亡")} 2"));
-                Assert.Single(BearLabels().Where(text=>text.Contains("Impossible")));
+                Assert.Contains(Risk(2),PmcLabels());
+                Assert.Contains(Subset(4),PmcLabels());
+                Assert.Contains(PmcLabels(),text=>text.Contains($"{I18n.T("생존 추정","推测存活")} 4") && text.Contains($"{I18n.T("사망 확인","已确认死亡")} 2"));
+                Assert.Single(PmcLabels().Where(text=>text.Contains("Impossible")));
+                Assert.DoesNotContain(PmcLabels(),text=>text is "BEAR" or "USEC");
 
                 threat.LifeStatus="DeadConfirmed";threat.DiedAt=new(2000,1,1);
                 Render(window,raid);
-                Assert.DoesNotContain(Risk(1),BearLabels());
-                Assert.DoesNotContain(BearLabels(),text=>text.Contains("Impossible"));
-                Assert.DoesNotContain(Subset(2),BearLabels());
+                Assert.Contains(Risk(1),PmcLabels());
+                Assert.Contains(Subset(3),PmcLabels());
+                usecThreat.LifeStatus="DeadConfirmed";usecThreat.DiedAt=new(2000,1,1);
+                Render(window,raid);
+                Assert.DoesNotContain(PmcLabels(),text=>text.Contains("Impossible"));
                 raid.Ended=true;Render(window,raid);
-                Assert.DoesNotContain(BearLabels(),text=>text.Contains("Impossible"));
+                Assert.DoesNotContain(PmcLabels(),text=>text.Contains("Impossible"));
                 raid.Ended=false;
 
                 bear.LifeInstances.Add(new() {PmcDifficulty="impossible"});
                 Render(window,raid);
-                Assert.Contains(Risk(1),BearLabels());
-                Assert.Contains(Subset(3),BearLabels());
+                Assert.Contains(Risk(1),PmcLabels());
+                Assert.Contains(Subset(3),PmcLabels());
                 raid.Ended=true;Render(window,raid);
-                Assert.DoesNotContain(Risk(1),BearLabels());
-                Assert.DoesNotContain(Subset(3),BearLabels());
-                Assert.Contains(string.Format(I18n.T("Impossible · 종료 시 사망 미확인 {0}명","Impossible · 结束时死亡未确认 {0} 人"),1),BearLabels());
+                Assert.DoesNotContain(Risk(1),PmcLabels());
+                Assert.DoesNotContain(Subset(3),PmcLabels());
+                Assert.Contains(string.Format(I18n.T("Impossible · 종료 시 사망 미확인 {0}명","Impossible · 结束时死亡未确认 {0} 人"),1),PmcLabels());
             }
             finally {Environment.SetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE",previous);}
         });
@@ -180,7 +189,7 @@ public class UiRegressionTests
                 Render(window, raid);
                 var labels = Text(panel).ToList();
                 Assert.Contains(Catalog.SpecialAiName(specialRole), labels);
-                Assert.Contains("BEAR", labels);
+                Assert.DoesNotContain(labels, text => text is "BEAR" or "USEC");
                 string impossible = Assert.Single(labels.Where(t => t.Contains("Impossible")));
                 Assert.EndsWith(language.StartsWith("ko") ? "1명" : language.StartsWith("zh") ? "1 人" : "1", impossible);
                 string infected = I18n.IsChinese ? "感染者" : I18n.IsKorean ? "감염자" : "Infected";
@@ -315,7 +324,7 @@ public class UiRegressionTests
     [InlineData("ko-KR")]
     [InlineData("en-US")]
     [InlineData("zh-CN")]
-    public void PendingPmcCardsShowSpawnDecisionUntilActivationWithoutInitialSpawnRow(string language)
+    public void MergedPmcCardShowsSpawnDecisionUntilActivationWithoutInitialSpawnRow(string language)
     {
         OnStaThread(() =>
         {
@@ -326,46 +335,55 @@ public class UiRegressionTests
                 var (window, panel) = CreateRenderer("factory4_day", "all");
                 var raid = new RaidState { Map = "factory4_day", Key = "pendingPmc" };
                 var bear = new PmcState { Role = "pmcBEAR", PlannedWaves = 1, InitialPlannedWaves = 1 };
-                IEnumerable<string> BearLabels() => Text(panel.Children.OfType<Border>().Single(card => Text(card).Contains("BEAR")));
+                IEnumerable<string> PmcLabels() => Text(Assert.IsType<Border>(panel.Children[0]));
                 raid.Pmcs["pmcBEAR"] = bear;
                 raid.Pmcs["pmcUSEC"] = new() { Role = "pmcUSEC", NotPlannedWaves = 1 };
-                var pmcHeading = Field<TextBlock>(window, "pmcHeading");
-                string ExpectedHeading(int count) => language switch
-                {
-                    "en-US" => $"AI PMC (current total {count})",
-                    "zh-CN" => $"AI PMC（当前共 {count} 人）",
-                    _ => $"AI PMC (현재 총 {count}명)",
-                };
+                var pmcColumn = Assert.IsType<StackPanel>(panel.Parent);
+                var pmcHeading = Assert.IsType<TextBlock>(pmcColumn.Children[0]);
                 Render(window, raid);
-                Assert.Equal(ExpectedHeading(0), pmcHeading.Text);
-                Assert.Contains(I18n.T("스폰 예정", "计划刷新"), Text(panel));
-                Assert.Contains(I18n.T("스폰 예정 없음", "未计划刷新"),Text(panel));
+                Assert.Equal("AI PMC", pmcHeading.Text);
+                Assert.Equal("AI PMC", PmcLabels().First());
+                Assert.Contains(I18n.T("스폰 예정", "计划刷新"), PmcLabels());
+                Assert.DoesNotContain(I18n.T("스폰 예정 없음", "未计划刷新"), Text(panel));
                 Assert.DoesNotContain(I18n.T("초기 스폰 예정", "初始刷新已计划"), Text(panel));
 
                 bear.PlannedWaves = 0; bear.InitialPlannedWaves = 0;
                 Render(window, raid);
-                Assert.Contains(I18n.T("스폰 미확인", "未检测到刷新"), BearLabels());
-                bear.LifeInstances.Add(new());
-                raid.Pmcs["pmcUSEC"].LifeInstances.Add(new() { LifeStatus = "DeadConfirmed", DiedAt = new(2000, 1, 1) });
+                Assert.Contains(I18n.T("스폰 미확인", "未检测到刷新"), PmcLabels());
+                bear.NotPlannedWaves = 1;
+                Render(window, raid);
+                Assert.Contains(I18n.T("스폰 예정 없음", "未计划刷新"), PmcLabels());
+                var bearPmc = new BossInstance();
+                bear.LifeInstances.Add(bearPmc);
+                bear.FirstSpawnedAt = new(2000, 1, 1, 11, 12, 52);
+                var usec = raid.Pmcs["pmcUSEC"];
+                usec.FirstSpawnedAt = new(2000, 1, 1, 11, 12, 51);
+                usec.LifeInstances.Add(new() { PmcDifficulty = "impossible" });
+                usec.LifeInstances.Add(new() { LifeStatus = "DeadConfirmed", DiedAt = new(2000, 1, 1) });
                 raid.Scavs.LifeInstances.Add(new());
                 Render(window, raid);
-                Assert.Equal(ExpectedHeading(2), pmcHeading.Text);
-                Assert.DoesNotContain(I18n.T("스폰 미확인", "未检测到刷新"), BearLabels());
+                Assert.Equal("AI PMC", pmcHeading.Text);
+                Assert.DoesNotContain(I18n.T("스폰 미확인", "未检测到刷新"), PmcLabels());
                 Assert.DoesNotContain(I18n.T("스폰 예정", "计划刷新"), Text(panel));
                 Assert.DoesNotContain(I18n.T("초기 스폰", "初始刷新"), Text(panel));
-                Assert.Contains(Text(panel), t => t.Contains(I18n.T("생존 추정", "推测存活")));
+                string aliveLabel = I18n.T("생존 추정", "推测存活");
+                string deadLabel = I18n.T("사망 확인", "已确认死亡");
+                Assert.Contains(PmcLabels(), t => t.Contains($"{aliveLabel} 2") && t.Contains($"{deadLabel} 1"));
+                Assert.Equal($"{I18n.T("첫 활성화", "首次激活")} 11:12:51", Assert.Single(PmcLabels().Where(t => t.Contains(I18n.T("첫 활성화", "首次激活")))));
+                bearPmc.LifeStatus = "DeadConfirmed";
+                bearPmc.DiedAt = new(2000, 1, 1);
+                Render(window, raid);
+                Assert.Contains(PmcLabels(), t => t.Contains($"{aliveLabel} 1") && t.Contains($"{deadLabel} 2"));
                 bear.AdditionalPlannedWaves=1;
                 Render(window,raid);
-                Assert.Contains(I18n.T("추가 스폰 예정","追加刷新已计划"),BearLabels());
+                Assert.Contains(I18n.T("추가 스폰 예정","追加刷新已计划"),PmcLabels());
                 raid.Ended=true;
                 Render(window,raid);
-                Assert.Equal(language switch
-                {
-                    "en-US" => "AI PMC (total 2)",
-                    "zh-CN" => "AI PMC（共 2 人）",
-                    _ => "AI PMC (총 2명)",
-                }, pmcHeading.Text);
-                Assert.DoesNotContain(I18n.T("추가 스폰 예정","追加刷新已计划"),BearLabels());
+                Assert.Equal("AI PMC", pmcHeading.Text);
+                Assert.Equal("AI PMC", PmcLabels().First());
+                string unconfirmedLabel = I18n.T("종료 시 사망 미확인", "结束时未确认死亡");
+                Assert.Contains(PmcLabels(), t => t.Contains($"{unconfirmedLabel} 1") && t.Contains($"{deadLabel} 2"));
+                Assert.DoesNotContain(I18n.T("추가 스폰 예정","追加刷新已计划"),PmcLabels());
                 Assert.DoesNotContain(I18n.T("추가 스폰 감시 종료","追加刷新监测已结束"),Text(panel));
             }
             finally { Environment.SetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE", previous); }
@@ -381,7 +399,7 @@ public class UiRegressionTests
         var panel = new StackPanel();
         var settings = new AppSettings();
         settings.Maps[map] = new() { Mode = filter };
-        Set("settings", settings); Set("pmcs", panel); Set("pmcHeading", new TextBlock()); Set("bosses", new StackPanel());
+        Set("settings", settings); Set("pmcs", panel); Set("bosses", new StackPanel());
         Set("waiting", new StackPanel()); Set("raidColumns", new Grid());
         Set("eventMobs", new StackPanel()); Set("eventSection", new StackPanel());
         Set("map", new TextBlock()); Set("raidLabel", new TextBlock());
