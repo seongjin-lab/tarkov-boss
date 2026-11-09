@@ -83,6 +83,25 @@ public class ReaderRegressionTests
         Assert.Equal(expected, Assert.Single(f.Reader.Current.Pmcs["pmcBEAR"].LifeInstances).PmcDifficulty);
     }
 
+    [Theory]
+    [InlineData("hard", 2, "hard")]
+    [InlineData("impossible", 2, "impossible")]
+    [InlineData("impossible", 0, "")]
+    public void DifficultyWithMultipleSpawnPointsOnlyAppliesToTheLinkedProfile(string difficulty, int spawnPoints, string expected)
+    {
+        using var f = new LogFixture();
+        f.Start();
+        f.Append("09:00:01.000", "Profile for bot typeA taken dataId:50: profileId:pmcA");
+        f.Append("09:00:01.001", $"Activate bots: Type:pmcBEAR BotDifficulty:{difficulty} id:999 spawnPoints:{spawnPoints} id:50");
+        f.Append("09:00:01.002", "Bot activate id:2 role:pmcBEAR profileId:pmcA pos:(1, 2, 3)");
+        f.Append("09:00:01.003", "Bot activate id:3 role:pmcBEAR profileId:pmcB pos:(4, 5, 6)");
+        f.Poll();
+
+        Assert.Collection(f.Reader.Current.Pmcs["pmcBEAR"].LifeInstances,
+            pmc => Assert.Equal(expected, pmc.PmcDifficulty),
+            pmc => Assert.Empty(pmc.PmcDifficulty));
+    }
+
     [Fact]
     public void UnknownAndConflictingDifficultiesStayUnclassified()
     {

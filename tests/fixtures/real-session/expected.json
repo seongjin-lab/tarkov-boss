@@ -278,7 +278,7 @@
           },
           {
             "BotId": "8",
-            "PmcDifficulty": "",
+            "PmcDifficulty": "hard",
             "Position": "",
             "Zone": "",
             "SpawnedAt": "2026-10-27T21:56:37.404",

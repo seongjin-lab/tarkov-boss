@@ -200,8 +200,9 @@ public class LogReader
         else if(line.Contains("|aiData|Profile for bot typeA taken") &&
             (m=Regex.Match(line,@"\bdataId:(\d+):\s+profileId:(\w+)\b")).Success)
         {kind="PmcProfileTaken";value=m.Groups[1].Value;id=m.Groups[2].Value;}
+        // A spawn record can list multiple points while still naming one profile data ID.
         else if(line.Contains("|aiData|Activate bots:") &&
-            (m=Regex.Match(line,@"\bType:(pmcBEAR|pmcUSEC)\s+BotDifficulty:(\w+)\s+id:\d+\s+spawnPoints:1\s+id:(\d+)\b",RegexOptions.IgnoreCase)).Success)
+            (m=Regex.Match(line,@"\bType:(pmcBEAR|pmcUSEC)\s+BotDifficulty:(\w+)\s+id:\d+\s+spawnPoints:[1-9]\d*\s+id:(\d+)\b",RegexOptions.IgnoreCase)).Success)
         {kind="PmcDifficultySpawn";value=m.Groups[1].Value;extra=m.Groups[2].Value;id=m.Groups[3].Value;}
         // PMC_DIFFICULTY_END
         else if(line.Contains("|aiData|") && (m=Regex.Match(line,@"Init Boss wave:(\w+) ShallSpawn:(True|False)\b(?: BossChance:(\d+))?")).Success)

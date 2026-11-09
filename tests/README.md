@@ -15,7 +15,7 @@ dotnet test tests/BossMonitor.Tests/BossMonitor.Tests.csproj -c Release
 
 ## 테스트 데이터
 
-- `tests/fixtures/real-session`: 실제 게임 로그에서 파서에 필요한 507개 이벤트를 추린 익명화 자료입니다. 총 7개의 레이드 상태(로그 경계 때문에 생긴 맵 미확인 상태 포함)를 복원합니다.
+- `tests/fixtures/real-session`: 실제 게임 로그에서 파서에 필요한 508개 이벤트를 추린 익명화 자료입니다. 총 7개의 레이드 상태(로그 경계 때문에 생긴 맵 미확인 상태 포함)를 복원합니다. 스폰 지점이 여러 개인 PMC 난이도 기록도 포함합니다.
 - `tests/fixtures/infected-tagilla-plan`: 1.3.0 공장 레이드의 감염된 타길라 판정(`ShallSpawn:False BossChance:6`)을 추린 최소 자료입니다. 원본 시각과 판정은 유지하고 레이드 ID와 애플리케이션 메시지의 부가 필드를 정리했습니다. 실제 활성화·사망은 아직 확보하지 못했으므로 가상 로그 테스트로 검증합니다.
 - `expected.json`: 보관한 **원본 로그**를 재생해 얻은 기대 상태입니다. 익명화 자료를 재생한 결과와 일치하는지 확인한 뒤 저장했습니다. 보스, PMC 난이도, 레이더, Scav, 최초 구역·좌표, 사망 좌표, 웨이브 수와 종료 상태 등을 비교합니다.
 - `ReaderRegressionTests.cs`: 실제 보관 자료에 없는 감염자·Impossible PMC·로그 조각·ID 재사용·줄 간격 경계·맵 이동 등의 사례를 가상 로그로 만듭니다. 실제 플레이 기록과 구분됩니다.
