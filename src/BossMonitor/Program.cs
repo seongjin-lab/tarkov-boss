@@ -1,8 +1,11 @@
+using System.IO.MemoryMappedFiles;
+
 namespace BossMonitor;
 internal static class Program
 {
     private const string SingletonName=@"Local\TarkovBossMonitor-GUI";
     private const string ActivationEventName=@"Local\TarkovBossMonitor-Activate";
+    private const string ActivationOwnerName=@"Local\TarkovBossMonitor-ActivationOwner";
 
     [STAThread] private static void Main()
     {
@@ -10,6 +13,12 @@ internal static class Program
         {
         using var singleton=new Mutex(true,SingletonName,out bool created);
         if(!created){ActivateExistingInstance();return;}
+        // Publish the PID before the event becomes available to subsequent launches.
+        using var activationOwner = MemoryMappedFile.CreateOrOpen(ActivationOwnerName, sizeof(int));
+        using (var owner = activationOwner.CreateViewAccessor(0, sizeof(int)))
+        {
+            owner.Write(0, Environment.ProcessId);
+        }
         using var activationEvent=new EventWaitHandle(false,EventResetMode.AutoReset,ActivationEventName);
         try { File.Delete(Path.Combine(Product.UserDir,"history.json")); } catch { }
         var app=new Application {ShutdownMode=ShutdownMode.OnMainWindowClose};
@@ -42,6 +51,8 @@ internal static class Program
             try
             {
                 using var activationEvent=EventWaitHandle.OpenExisting(ActivationEventName);
+                // Explorer may grant foreground access to the new process only.
+                GrantForegroundToExistingInstance();
                 activationEvent.Set();
                 return;
             }
@@ -51,6 +62,26 @@ internal static class Program
                 Thread.Sleep(50);
             }
             catch(UnauthorizedAccessException) {return;}
+        }
+    }
+
+    private static void GrantForegroundToExistingInstance()
+    {
+        try
+        {
+            using var activationOwner = MemoryMappedFile.OpenExisting(ActivationOwnerName, MemoryMappedFileRights.Read);
+            using var owner = activationOwner.CreateViewAccessor(0, sizeof(int), MemoryMappedFileAccess.Read);
+            int processId = owner.ReadInt32(0);
+            if (processId > 0)
+                WindowActivation.AllowSetForegroundWindow(processId);
+        }
+        catch (FileNotFoundException)
+        {
+            // Older instances can still receive the activation event.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Signal the event even if we cannot read the foreground grant target.
         }
     }
 }

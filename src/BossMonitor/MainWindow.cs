@@ -1,5 +1,6 @@
 using System.Windows.Threading;
 using System.Windows.Media.Animation;
+using System.Windows.Interop;
 
 namespace BossMonitor;
 public class MainWindow : Window
@@ -27,6 +28,7 @@ public class MainWindow : Window
     private readonly Forms.NotifyIcon tray;
     private readonly DockPanel monitor;
     private SettingsView? settingsView;
+    private WindowState restoreWindowState = WindowState.Normal;
     private bool subpage;
     private bool busy,paused,closed,configuring,exitRequested;
     private string rendering="",retryRoot="";
@@ -67,10 +69,15 @@ public class MainWindow : Window
         var monitorBody=new Grid {Margin=new Thickness(0,8,0,6)};
         monitorBody.Children.Add(raidColumns);monitorBody.Children.Add(waiting);
         monitorScroll.Content=monitorBody;root.Children.Add(monitorScroll);
-        var menu=new Forms.ContextMenuStrip();menu.Items.Add(I18n.T("창 열기","打开窗口"),null,(s,e)=>Dispatcher.Invoke(ShowMain));menu.Items.Add(I18n.T("감시 일시 중지 / 재개","暂停/继续监控"),null,(s,e)=>Dispatcher.Invoke(TogglePause));menu.Items.Add(I18n.T("설정","设置"),null,(s,e)=>Dispatcher.Invoke(()=>{ShowMain();OpenSettings();}));menu.Items.Add(I18n.T("종료","退出"),null,(s,e)=>Dispatcher.Invoke(ExitApplication));
+        var menu=new Forms.ContextMenuStrip();menu.Items.Add(I18n.T("창 열기","打开窗口"),null,(s,e)=>Dispatcher.BeginInvoke(ShowMain));menu.Items.Add(I18n.T("감시 일시 중지 / 재개","暂停/继续监控"),null,(s,e)=>Dispatcher.Invoke(TogglePause));menu.Items.Add(I18n.T("설정","设置"),null,(s,e)=>Dispatcher.BeginInvoke(()=>{ShowMain();OpenSettings();}));menu.Items.Add(I18n.T("종료","退出"),null,(s,e)=>Dispatcher.Invoke(ExitApplication));
         using var stream=Application.GetResourceStream(new Uri("pack://application:,,,/Assets/boss-monitor.ico")).Stream;
         tray=new Forms.NotifyIcon {Icon=new System.Drawing.Icon(stream),Text="Tarkov Boss Monitor",Visible=true,ContextMenuStrip=menu};tray.DoubleClick+=(s,e)=>Dispatcher.Invoke(ShowMain);
         tray.BalloonTipClicked+=(s,e)=>Dispatcher.Invoke(ShowMain);
+        StateChanged += (s, e) =>
+        {
+            if (WindowState != WindowState.Minimized)
+                restoreWindowState = WindowState;
+        };
         timer.Tick+=async(s,e)=>await Tick();
         Loaded+=async(s,e)=>
         {
@@ -287,26 +294,49 @@ public class MainWindow : Window
     }
     private void FitWindowToContent()
     {
-        if(!IsLoaded||subpage||WindowState!=WindowState.Normal)return;
+        if(!IsLoaded||!IsVisible||subpage||WindowState!=WindowState.Normal)return;
         Dispatcher.BeginInvoke(() =>
         {
-            if(subpage||WindowState!=WindowState.Normal)return;
+            if (!IsVisible || subpage || WindowState != WindowState.Normal) return;
             monitorScroll.UpdateLayout();
             double chrome=ActualHeight-monitorScroll.ViewportHeight;
             if(double.IsNaN(chrome)||chrome<=0)return;
-            var work=SystemParameters.WorkArea;
-            double target=Math.Clamp(chrome+monitorScroll.ExtentHeight+4,MinHeight,Math.Max(MinHeight,work.Height-24));
-            if(Math.Abs(Height-target)>1)Height=target;
-            if(Top+Height>work.Bottom)Top=Math.Max(work.Top,work.Bottom-Height);
+            if (!WindowPlacement.TryGetWorkArea(this, out var work)) return;
+            double target = Math.Clamp(chrome + monitorScroll.ExtentHeight + 4, MinHeight, Math.Max(MinHeight, work.Height - 24));
+            if (Math.Abs(Height - target) <= 1) return;
+            ResizeWithinWorkArea(Width, target, work);
         },DispatcherPriority.Loaded);
     }
+
+    private void ResizeWithinWorkArea(double width, double height, Rect workArea)
+    {
+        var bounds = new Rect(Left, Top, Width, Height);
+        var fitted = WindowPlacement.ResizeWithinWorkArea(bounds, new Size(width, height), workArea);
+        if (fitted.Left != bounds.Left) Left = fitted.Left;
+        if (fitted.Top != bounds.Top) Top = fitted.Top;
+        Width = width;
+        Height = height;
+    }
+
     internal void ShowMain()
     {
-        Show();WindowState=WindowState.Normal;Activate();Focus();
-        // A launch from Explorer is an explicit request to surface the app. Briefly
-        // promoting the window also works around Windows foreground-lock behavior.
-        bool configuredTopmost=settings.AlwaysOnTop;
-        Topmost=true;Topmost=configuredTopmost;
+        if (closed) return;
+        bool wasHidden = !IsVisible;
+        var state = WindowState == WindowState.Minimized ? restoreWindowState : WindowState;
+        if (wasHidden) Show();
+        if (WindowState != state) WindowState = state;
+
+        var handle = new WindowInteropHelper(this).Handle;
+        if (WindowState == WindowState.Normal && WindowPlacement.TryGetWorkArea(this, out var work))
+        {
+            var bounds = new Rect(Left, Top, Width, Height);
+            var recovered = WindowPlacement.RecoverOffscreen(bounds, work);
+            if (recovered.Left != bounds.Left) Left = recovered.Left;
+            if (recovered.Top != bounds.Top) Top = recovered.Top;
+        }
+
+        if (!Activate()) WindowActivation.FlashTaskbar(handle);
+        if (wasHidden) FitWindowToContent();
     }
     private void HideToTray()
     {
@@ -329,15 +359,11 @@ public class MainWindow : Window
     {
         if(busy || configuring || settingsView!=null)return;
         var view=new SettingsView(settings,reader.ObservedRoles,first);settingsView=view;subpage=true;Topmost=false;Content=view;Title=first?I18n.T("처음 시작하기 · Tarkov Boss Monitor","开始使用 · Tarkov Boss Monitor"):I18n.T("설정 · Tarkov Boss Monitor","设置 · Tarkov Boss Monitor");
-        if(WindowState==WindowState.Normal)
+        if (WindowState == WindowState.Normal && WindowPlacement.TryGetWorkArea(this, out var work))
         {
-            // Monitoring can shrink the waiting view. Restore room for settings,
-            // keeping the enlarged window inside the available desktop area.
-            var work=SystemParameters.WorkArea;
-            Width=Math.Max(Width,Math.Min(DefaultWindowWidth,Math.Max(MinWidth,work.Width-24)));
-            Height=Math.Max(Height,Math.Min(DefaultWindowHeight,Math.Max(MinHeight,work.Height-24)));
-            if(Left+Width>work.Right)Left=Math.Max(work.Left,work.Right-Width);
-            if(Top+Height>work.Bottom)Top=Math.Max(work.Top,work.Bottom-Height);
+            double width = Math.Max(Width, Math.Min(DefaultWindowWidth, Math.Max(MinWidth, work.Width - 24)));
+            double height = Math.Max(Height, Math.Min(DefaultWindowHeight, Math.Max(MinHeight, work.Height - 24)));
+            ResizeWithinWorkArea(width, height, work);
         }
         view.Completed+=saved=>
         {
