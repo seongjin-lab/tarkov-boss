@@ -125,6 +125,33 @@ public class ReaderRegressionTests
     }
 
     [Fact]
+    public void AssaultGroupDeathsCountInBothScavCardAndPlayerKills()
+    {
+        using var f = new LogFixture();
+        f.Start("bigmap");
+        f.Append("09:00:01.000", "AIDATA create Player id:1 isAI:False name:FixturePlayer Standing:0");
+        f.Append("09:00:02.000", "Bot activate id:2 role:assault profileId:scavA pos:(1, 2, 3)");
+        for (int id = 3; id <= 5; id++)
+            f.Append("09:00:03.000", $"Bot activate id:{id} role:assaultGroup profileId:groupScav{id} pos:(4, 5, 6)");
+
+        for (int id = 3; id <= 5; id++)
+        {
+            string time = $"09:00:{id + 1:D2}";
+            f.Append($"{time}.000", $"bot get hit from enemy. botId:{id} from:FixturePlayer");
+            f.Append($"{time}.001", $"bot dispose:{id}");
+            f.Append($"{time}.002", $"BotDied pos:({id}, 8, 9)");
+        }
+        f.Poll();
+
+        var raid = f.Reader.Current;
+        Assert.Equal(3, raid.PlayerKills);
+        Assert.Equal(4, raid.Scavs.Count);
+        Assert.Equal("scavA", Assert.Single(raid.Scavs.LifeInstances, i => i.DiedAt == null).Profile);
+        Assert.All(raid.Scavs.LifeInstances.Where(i => i.DiedAt != null),
+            i => Assert.Equal("DeadConfirmed", i.LifeStatus));
+    }
+
+    [Fact]
     public void ReusedBotIdKeepsDeathsOnTheirOwnProfiles()
     {
         using var f = new LogFixture();

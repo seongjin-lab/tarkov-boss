@@ -425,8 +425,8 @@ public class LogReader
                 }
                 continue;
             }
-            // The supplied local PvE logs identify ordinary Scavs as role:assault.
-            if(ev.Value.Equals("assault",StringComparison.OrdinalIgnoreCase) && !current.Ended)
+            // Grouped Scavs use a separate role but share the same life counts.
+            if((ev.Value.Equals("assault",StringComparison.OrdinalIgnoreCase) || ev.Value.Equals("assaultGroup",StringComparison.OrdinalIgnoreCase)) && !current.Ended)
             {
                 if(ev.Kind=="Active")
                 {
