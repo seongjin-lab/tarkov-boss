@@ -18,7 +18,7 @@ A Windows x64 app that detects boss spawns in official PvE raids running locally
 - Tracks infected and infected Tagilla separately in the Events section, including infected Tagilla's spawn chance, spawn decision, and life state after activation
 - Lets you choose bosses to monitor for each map
 - Shows combined estimated-alive and confirmed-dead counts for BEAR and USEC in one AI PMC card
-- Highlights the difficulty and count of estimated surviving Impossible PMCs, explicitly included in the total estimated survivors
+- Includes Impossible PMCs in the estimated survivor count, highlights a positive count, and shows zero in smaller text
 - Continuously estimates the Woods BTR's current stop and travel segment from log signals
 - Supports installation while the game is running
 - Cleans old game logs safely with a Windows scheduled task

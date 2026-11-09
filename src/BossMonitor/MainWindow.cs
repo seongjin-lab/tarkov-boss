@@ -564,7 +564,11 @@ public class MainWindow : Window
     }
     private static void AddPmcDifficultySummary(StackPanel content,int impossible,int alive,bool ended)
     {
-        if(impossible==0)return;
+        if (impossible == 0)
+        {
+            content.Children.Add(CompactLabel(string.Format(I18n.T("Impossible {0}명", "Impossible {0} 人"), impossible), 12, Theme.Muted));
+            return;
+        }
         if(ended)
         {
             string format=I18n.T("Impossible · 종료 시 사망 미확인 {0}명","Impossible · 结束时死亡未确认 {0} 人");

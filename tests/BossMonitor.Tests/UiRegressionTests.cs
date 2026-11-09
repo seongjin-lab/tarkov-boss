@@ -16,7 +16,7 @@ public class UiRegressionTests
     [InlineData("ko-KR")]
     [InlineData("en-US")]
     [InlineData("zh-CN")]
-    public void ImpossibleThreatIsASubsetOfSurvivorsAndClearsOnDeathOrRaidEnd(string language)
+    public void ImpossibleCountIsASubsetOfSurvivorsAndShowsZeroOnDeathOrRaidEnd(string language)
     {
         OnStaThread(() =>
         {
@@ -55,9 +55,10 @@ public class UiRegressionTests
                 Assert.Contains(Subset(3),PmcLabels());
                 usecThreat.LifeStatus="DeadConfirmed";usecThreat.DiedAt=new(2000,1,1);
                 Render(window,raid);
-                Assert.DoesNotContain(PmcLabels(),text=>text.Contains("Impossible"));
+                Assert.Equal(Risk(0), Assert.Single(PmcLabels(), text => text.Contains("Impossible")));
+                Assert.DoesNotContain(Subset(2), PmcLabels());
                 raid.Ended=true;Render(window,raid);
-                Assert.DoesNotContain(PmcLabels(),text=>text.Contains("Impossible"));
+                Assert.Equal(Risk(0), Assert.Single(PmcLabels(), text => text.Contains("Impossible")));
                 raid.Ended=false;
 
                 bear.LifeInstances.Add(new() {PmcDifficulty="impossible"});
@@ -210,11 +211,12 @@ public class UiRegressionTests
                 raid.Pmcs["pmcBEAR"].LifeInstances[0].LifeStatus = "DeadConfirmed";
                 raid.Pmcs["pmcBEAR"].LifeInstances[0].DiedAt = new(2000, 1, 1);
                 Render(window, raid);
-                Assert.DoesNotContain(Text(panel),t=>t.Contains("Impossible"));
+                string zero = string.Format(I18n.T("Impossible {0}명", "Impossible {0} 人"), 0);
+                Assert.Equal(zero, Assert.Single(Text(panel), t => t.Contains("Impossible")));
                 Assert.DoesNotContain(I18n.T("추가 스폰 감시 종료","追加刷新监测已结束"),Text(panel).Concat(Text(eventPanel)));
                 raid.Ended = true;
                 Render(window, raid);
-                Assert.DoesNotContain(Text(panel),t=>t.Contains("Impossible"));
+                Assert.Equal(zero, Assert.Single(Text(panel), t => t.Contains("Impossible")));
             }
             finally { Environment.SetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE", previous); }
         });
@@ -344,6 +346,7 @@ public class UiRegressionTests
                 Assert.Equal("AI PMC", pmcHeading.Text);
                 Assert.Equal("AI PMC", PmcLabels().First());
                 Assert.Contains(I18n.T("스폰 예정", "计划刷新"), PmcLabels());
+                Assert.DoesNotContain(PmcLabels(), t => t.Contains("Impossible"));
                 Assert.DoesNotContain(I18n.T("스폰 예정 없음", "未计划刷新"), Text(panel));
                 Assert.DoesNotContain(I18n.T("초기 스폰 예정", "初始刷新已计划"), Text(panel));
 
