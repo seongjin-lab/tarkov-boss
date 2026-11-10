@@ -25,7 +25,7 @@ public class CardChangeTrackerTests
     }
 
     [Fact]
-    public void NewCardsAndEventDecisionsHighlightWithoutTreatingProbabilityAsActivation()
+    public void SpawnDecisionsStayQuietUntilActivation()
     {
         var tracker=new CardChangeTracker();var raid=Raid();tracker.Observe(raid,Now);
         raid.InfectedTagilla.SpawnChance=100;
@@ -33,10 +33,12 @@ public class CardChangeTrackerTests
         Assert.Null(tracker.Recent("event:infectedTagilla",Now.AddSeconds(1)));
         raid.InfectedTagilla.Status="NotPlanned";
         tracker.Observe(raid,Now.AddSeconds(2));
-        Assert.Equal(CardChangeTracker.ChangeKind.NotPlanned,tracker.Recent("event:infectedTagilla",Now.AddSeconds(2))!.Kind);
+        Assert.Null(tracker.Recent("event:infectedTagilla",Now.AddSeconds(2)));
         raid.Bosses["bossTagilla"]=new() {Status="Planned"};
+        raid.Pmcs["pmcBEAR"]=new() {PlannedWaves=1};
         tracker.Observe(raid,Now.AddSeconds(3));
-        Assert.Equal(CardChangeTracker.ChangeKind.Planned,tracker.Recent("boss:bossTagilla",Now.AddSeconds(3))!.Kind);
+        Assert.Null(tracker.Recent("boss:bossTagilla",Now.AddSeconds(3)));
+        Assert.Null(tracker.Recent(PmcCardSummary.CardKey,Now.AddSeconds(3)));
         raid.InfectedTagilla.Status="Confirmed";raid.InfectedTagilla.LifeInstances.Add(new());
         tracker.Observe(raid,Now.AddSeconds(4));
         Assert.Equal(CardChangeTracker.ChangeKind.Activated,tracker.Recent("event:infectedTagilla",Now.AddSeconds(4))!.Kind);

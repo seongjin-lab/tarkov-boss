@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Media;
 using BossMonitor.Core;
 using Xunit;
 
@@ -107,7 +109,7 @@ public class UiRegressionTests
                 Assert.Contains($"{I18n.T("스폰 확률","刷新概率")} 23%",Text(bosses));
                 Assert.Contains(I18n.T("스폰 미확인","未检测到刷新"),Text(events));
                 Assert.Contains(I18n.T("스폰 예정 없음","未计划刷新"),Text(events));
-                Assert.Equal(1,bosses.Children.OfType<Border>().Single(card=>Text(card).Contains(Catalog.BossName("bossTagilla",settings))).Opacity);
+                Assert.Equal(0.8,bosses.Children.OfType<Border>().Single(card=>Text(card).Contains(Catalog.BossName("bossTagilla",settings))).Opacity);
                 Assert.Equal(0.8,bosses.Children.OfType<Border>().Single(card=>Text(card).Contains(Catalog.BossName("bossKnight",settings))).Opacity);
                 raid.Bosses["bossKnight"].Status="Confirmed";
                 raid.Bosses["bossKnight"].LifeInstances.Add(new());
@@ -122,24 +124,34 @@ public class UiRegressionTests
         });
     }
     [Fact]
-    public void RecentChangesAnimateWithoutChangingCardLayoutOrHalloweenSkin()
+    public void RecentChangesAnimateWithoutChangingCardLayoutOrLosingHalloweenDecoration()
     {
         OnStaThread(() =>
         {
             var (window,panel)=CreateRenderer("Lighthouse","all");
+            using var source = new HwndSource(new HwndSourceParameters("Card highlight test")
+            {
+                Width = 760,
+                Height = 620,
+                WindowStyle = unchecked((int)0x80000000) // Hidden WS_POPUP
+            }) { RootVisual = Field<Grid>(window, "raidColumns") };
             var raid=new RaidState {Map="Lighthouse",Key="highlight-fixture"};
             raid.InfectedTagilla.Status="NotPlanned";
             Render(window,raid);
             var events=Field<StackPanel>(window,"eventMobs");
             var original=Assert.IsType<Border>(events.Children[0]);
-            var skin=original.Background;
-            Assert.Same(Theme.Card, Assert.IsType<Border>(events.Children[1]).Background);
+            Color[] Palette(Border card) => Assert.IsType<LinearGradientBrush>(card.Background)
+                .GradientStops.Select(stop => stop.Color).ToArray();
+            var basePalette = Palette(original);
+            Assert.Equal(basePalette, Palette(Assert.IsType<Border>(events.Children[1])));
             raid.InfectedScreamer.LifeInstances.Add(new());
             raid.InfectedScreamer.Status="Confirmed";
             raid.Scavs.LifeInstances.Add(new());
             Render(window,raid);
             var infected=Assert.IsType<Border>(events.Children[0]);
-            Assert.Equal(skin.ToString(),infected.Background.ToString());
+            Assert.False(basePalette.SequenceEqual(Palette(infected)));
+            Assert.NotEqual(original.BorderBrush.ToString(), infected.BorderBrush.ToString());
+            Assert.Contains(I18n.T("할로윈", "万圣节"), Text(infected));
             var surface=Assert.IsType<Grid>(infected.Child);
             var wash=Assert.IsType<Border>(surface.Children[0]);
             Assert.False(wash.IsHitTestVisible);
@@ -156,9 +168,25 @@ public class UiRegressionTests
             scavs=panel.Children.OfType<Border>().Single(card=>Text(card).Contains(I18n.T("스캐브","Scav")));
             Assert.True(scavs.HasAnimatedProperties);
             Assert.Equal(0.8,(double)scavs.GetAnimationBaseValue(UIElement.OpacityProperty));
-            raid.Ended=true;Render(window,raid);
-            Assert.All(events.Children.OfType<Border>(),card=>Assert.False(card.HasAnimatedProperties));
-            Assert.Same(Theme.Card, Assert.IsType<Border>(events.Children[1]).Background);
+            Assert.Same(Theme.Card, scavs.Background);
+            Assert.Same(Theme.Line, scavs.BorderBrush);
+            var deathWash = Assert.IsType<Border>(Assert.IsType<Grid>(scavs.Child).Children[0]);
+            Assert.True(scavs.IsVisible);
+            Assert.True(deathWash.HasAnimatedProperties);
+
+            // Even a new activation in the final update must be shown without animation.
+            raid.InfectedTagilla.Status = "Confirmed";
+            raid.InfectedTagilla.LifeInstances.Add(new());
+            raid.Ended = true;
+            Render(window, raid);
+            Assert.False(scavs.HasAnimatedProperties);
+            Assert.False(deathWash.HasAnimatedProperties);
+            Assert.All(events.Children.OfType<Border>().Concat(panel.Children.OfType<Border>()), card =>
+            {
+                Assert.False(card.HasAnimatedProperties);
+                Assert.DoesNotContain(Assert.IsType<Grid>(card.Child).Children.Cast<UIElement>(), child => child.HasAnimatedProperties);
+            });
+            Assert.All(events.Children.OfType<Border>(), card => Assert.Equal(basePalette, Palette(card)));
         });
     }
 
@@ -313,6 +341,7 @@ public class UiRegressionTests
                 raid.InfectedTagilla.LifeInstances.Add(new());
                 Render(window, raid);
                 var card = events.Children.OfType<Border>().Single(card=>card.Child is not Expander && Text(card).Contains(name));
+                Assert.Contains(I18n.T("할로윈", "万圣节"), Text(card));
                 Assert.Contains(Text(card), t => t.Contains($"{I18n.T("생존 추정", "推测存活")} 1"));
                 raid.InfectedTagilla.LifeInstances[0].LifeStatus = "DeadConfirmed";
                 raid.InfectedTagilla.LifeInstances[0].DiedAt = new(2000, 1, 1);
@@ -447,6 +476,114 @@ public class UiRegressionTests
         });
     }
 
+    [Theory]
+    [InlineData("light", false)]
+    [InlineData("light", true)]
+    [InlineData("dark", false)]
+    [InlineData("dark", true)]
+    public void EnemyCardsStayDimBeforeActivationInEitherTheme(string theme, bool ended)
+    {
+        OnStaThread(() =>
+        {
+            const string map = "Lighthouse";
+            Theme.ApplyMode(theme);
+            var (window, ai) = CreateRenderer(map, "selected");
+            var settings = Field<AppSettings>(window, "settings");
+            settings.Maps[map].Roles = ["sectantPriest", "bossKnight", "bossPartisan"];
+            var raid = new RaidState { Map = map, Key = "unconfirmed", Ended = ended };
+            var bosses = Field<StackPanel>(window, "bosses");
+            var events = Field<StackPanel>(window, "eventMobs");
+            Border Boss(string role) => bosses.Children.OfType<Border>()
+                .Single(card => Text(card).Contains(Catalog.BossName(role, settings)));
+
+            Render(window, raid);
+            Assert.Equal(0.8, Assert.IsType<Border>(ai.Children[0]).Opacity);
+
+            raid.Bosses["bossKnight"] = new() { Role = "bossKnight", Status = "Planned" };
+            raid.Bosses["bossPartisan"] = new() { Role = "bossPartisan", Status = "NotPlanned" };
+            raid.InfectedTagilla.Status = "Planned";
+            raid.Pmcs["pmcBEAR"] = new() { PlannedWaves = 1, AdditionalPlannedWaves = 1 };
+            Render(window, raid);
+            Assert.True(ai.Children.Count >= 3); // PMC, Rogue and Scav
+            Assert.Equal(2, events.Children.Count);
+            Assert.All(bosses.Children.Cast<UIElement>().Concat(events.Children.Cast<UIElement>()).Concat(ai.Children.Cast<UIElement>()), element =>
+            {
+                Assert.Equal(0.8, Assert.IsType<Border>(element).Opacity);
+                Assert.False(element.HasAnimatedProperties);
+            });
+            string endLabel = ended ? I18n.T(" · 레이드 종료", " · 战局已结束") : "";
+            Assert.Contains(I18n.T("확인 불가", "无法确认") + endLabel, Text(Boss("sectantPriest")));
+            Assert.Contains(I18n.T("스폰 예정", "计划刷新") + endLabel, Text(Boss("bossKnight")));
+            Assert.Contains(I18n.T("스폰 예정 없음", "未计划刷新") + endLabel, Text(Boss("bossPartisan")));
+            Assert.False(raid.Bosses.ContainsKey("sectantPriest"));
+
+            raid.Bosses["bossKnight"].Status = "Confirmed";
+            raid.Bosses["bossKnight"].LifeInstances.Add(new());
+            raid.Scavs.LifeInstances.Add(new());
+            raid.Pmcs["pmcBEAR"].LifeInstances.Add(new());
+            raid.SpecialAis["exUsec"] = new() { Role = "exUsec", Status = "Confirmed", LifeInstances = [new()] };
+            Render(window, raid);
+            Assert.Equal(1, Boss("bossKnight").Opacity);
+            Assert.Equal(0.8, Boss("bossPartisan").Opacity);
+            Assert.Same(Theme.Card, Boss("bossPartisan").Background);
+            var survivorCards = ai.Children.OfType<Border>().Append(Boss("bossKnight"));
+            Assert.All(survivorCards, card =>
+            {
+                Assert.Same(ended ? Theme.Card : Theme.SurvivorCard, card.Background);
+                Assert.Same(ended ? Theme.Line : Theme.SurvivorOutline, card.BorderBrush);
+            });
+        });
+    }
+
+    [Fact]
+    public void WaitingCardAnimatesTheRadarSweepAndDotWhileVisible()
+    {
+        OnStaThread(() =>
+        {
+            var (window, _) = CreateRenderer("factory4_day", "all");
+            var waiting = Field<StackPanel>(window, "waiting");
+            using var source = new HwndSource(new HwndSourceParameters("Waiting card test")
+            {
+                Width = 620,
+                Height = 220,
+                WindowStyle = unchecked((int)0x80000000) // Hidden WS_POPUP
+            }) { RootVisual = waiting };
+            var idle = new RaidState();
+            Render(window, idle);
+
+            Grid Hero() => Assert.IsType<Grid>(Assert.IsType<Border>(Assert.Single(waiting.Children)).Child);
+            var hero = Hero();
+            var radar = Assert.IsType<WaitingRadar>(hero.Children[0]);
+            var sweep = Assert.IsType<RotateTransform>(Assert.IsType<Image>(radar.Children[2]).RenderTransform);
+            var text = Assert.IsType<StackPanel>(hero.Children[1]);
+            var status = Assert.IsType<DockPanel>(text.Children[0]);
+            var dot = Assert.IsType<TextBlock>(status.Children[0]);
+            var caption = Assert.IsType<TextBlock>(status.Children[1]);
+            bool allowMotion = SystemParameters.ClientAreaAnimation;
+            Assert.True(hero.IsVisible);
+            Assert.Equal(allowMotion, dot.HasAnimatedProperties);
+            Assert.Equal(allowMotion, sweep.HasAnimatedProperties);
+            Assert.True(radar.RenderTransform.Value.IsIdentity);
+            Assert.All(radar.Children.Cast<UIElement>().Take(2), layer => Assert.True(layer.RenderTransform.Value.IsIdentity));
+            Assert.False(caption.HasAnimatedProperties);
+            Assert.Equal(I18n.T("감시 중", "正在监控"), caption.Text);
+
+            Render(window, idle);
+            Assert.Same(hero, Hero());
+            waiting.Visibility = Visibility.Hidden;
+            Assert.False(dot.HasAnimatedProperties);
+            Assert.False(sweep.HasAnimatedProperties);
+            Assert.Equal(45, sweep.Angle);
+            waiting.Visibility = Visibility.Visible;
+            Assert.Equal(allowMotion, dot.HasAnimatedProperties);
+            Assert.Equal(allowMotion, sweep.HasAnimatedProperties);
+            Render(window, new RaidState { Map = "factory4_day" });
+            Assert.Empty(waiting.Children);
+            Assert.False(dot.HasAnimatedProperties);
+            Assert.False(sweep.HasAnimatedProperties);
+        });
+    }
+
     [Fact]
     public void ThemeSwitchUpdatesExistingCardsAndKeepsTheirPortraitsAndRaidState()
     {
@@ -459,6 +596,7 @@ public class UiRegressionTests
             settings.Maps["factory4_day"].Roles = ["bossTagilla", "bossCustom"];
             settings.CustomRoles["bossCustom"] = "Custom";
             var raid = new RaidState { Map = "factory4_day", Key = "theme", PlayerKills = 7 };
+            raid.Bosses["bossTagilla"] = new() { Role = "bossTagilla", Status = "Confirmed", LifeInstances = [new()] };
             raid.InfectedTagilla.Status = "Planned";
             Render(window, raid);
 
@@ -472,11 +610,14 @@ public class UiRegressionTests
             Assert.Same(Portraits.ForRole("ai-pmc"), CardPortrait(ai.Children[0]).Source);
 
             var surface = Assert.IsType<System.Windows.Media.SolidColorBrush>(ordinary.Background);
+            Assert.Same(Theme.SurvivorCard, surface);
             var light = surface.Color;
             var halloween = events[0].Background.ToString();
+            Assert.Equal(halloween, events[1].Background.ToString());
             Assert.True(Theme.ApplyMode("dark"));
             Assert.NotEqual(light, surface.Color);
             Assert.Equal(halloween, events[0].Background.ToString());
+            Assert.Equal(halloween, events[1].Background.ToString());
             var liveBosses = Field<StackPanel>(window, "bosses").Children.OfType<Border>();
             Assert.Same(ordinary, liveBosses.Single(card => Text(card).Contains(Catalog.BossName("bossTagilla", settings))));
             Assert.Equal("7", Field<TextBlock>(window, "playerKills").Text);
@@ -503,6 +644,8 @@ public class UiRegressionTests
             var bosses = Field<StackPanel>(window, "bosses");
             var events = Field<StackPanel>(window, "eventMobs");
             var card = Assert.Single(events.Children.OfType<Border>());
+            Assert.Same(Theme.SurvivorCard, card.Background);
+            Assert.DoesNotContain(I18n.T("할로윈", "万圣节"), Text(card));
             Assert.Same(Portraits.ForRole("bossScourgeEventLab"), CardPortrait(card).Source);
             Assert.Contains(Text(card), line => line.Contains("Lab zone"));
             Assert.Empty(bosses.Children);

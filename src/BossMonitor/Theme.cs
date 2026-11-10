@@ -13,6 +13,8 @@ internal static class Theme
     [
         (nameof(Bg), "#E8E4D9", "#171A17"),
         (nameof(Card), "#F7F4EB", "#232721"),
+        (nameof(SurvivorCard), "#EFF5E0", "#303B2B"),
+        (nameof(SurvivorOutline), "#557237", "#A7C37A"),
         (nameof(Text), "#22261F", "#EDE9D9"),
         (nameof(Muted), "#414336", "#C1C4B3"),
         (nameof(Line), "#ABA894", "#50584A"),
@@ -33,6 +35,8 @@ internal static class Theme
 
     public static SolidColorBrush Bg => BrushesByName[nameof(Bg)].Brush;
     public static SolidColorBrush Card => BrushesByName[nameof(Card)].Brush;
+    public static SolidColorBrush SurvivorCard => BrushesByName[nameof(SurvivorCard)].Brush;
+    public static SolidColorBrush SurvivorOutline => BrushesByName[nameof(SurvivorOutline)].Brush;
     public static SolidColorBrush Text => BrushesByName[nameof(Text)].Brush;
     public static SolidColorBrush Muted => BrushesByName[nameof(Muted)].Brush;
     public static SolidColorBrush Line => BrushesByName[nameof(Line)].Brush;

@@ -3,9 +3,9 @@ namespace BossMonitor;
 // Presentation state only. Never infer deaths or spawn decisions from silence.
 internal sealed class CardChangeTracker
 {
-    internal enum ChangeKind { Activated, Death, Planned, NotPlanned }
+    internal enum ChangeKind { Activated, Death, Planned }
     internal record Change(ChangeKind Kind, DateTimeOffset At);
-    private record Snapshot(string Status,int Count,int Dead,int PlannedWaves=0);
+    private record Snapshot(int Count,int Dead,int PlannedWaves=0);
     internal static readonly TimeSpan HoldDuration=TimeSpan.FromSeconds(2);
     internal static readonly TimeSpan Duration=TimeSpan.FromSeconds(8);
     private readonly Dictionary<string,Snapshot> previous=new(StringComparer.OrdinalIgnoreCase);
@@ -21,18 +21,17 @@ internal sealed class CardChangeTracker
 
         foreach(var (key,current) in Snapshots(raid))
         {
-            var before=previous.GetValueOrDefault(key)??new Snapshot("Unknown",0,0);
+            var before=previous.GetValueOrDefault(key)??new Snapshot(0,0);
             previous[key]=current;
+            if (current.Count == 0)
+            {
+                changes.Remove(key);
+                continue;
+            }
             if(baseline || raid.Ended || raid.Map=="")continue;
             ChangeKind? kind=current.Count>before.Count?ChangeKind.Activated
                 :current.Dead>before.Dead?ChangeKind.Death
-                :current.PlannedWaves>before.PlannedWaves?ChangeKind.Planned
-                :current.Count==0 && current.Status!=before.Status?current.Status switch
-                {
-                    "Planned"=>ChangeKind.Planned,
-                    "NotPlanned"=>ChangeKind.NotPlanned,
-                    _=>null
-                }:null;
+                :current.PlannedWaves>before.PlannedWaves?ChangeKind.Planned:null;
             if(kind is {} value)changes[key]=new(value,now);
         }
     }
@@ -44,12 +43,12 @@ internal sealed class CardChangeTracker
     {
         foreach(var (role,state) in raid.Bosses)yield return ($"boss:{role}",Of(state));
         var pmc = PmcCardSummary.From(raid);
-        yield return (PmcCardSummary.CardKey, new(pmc.Status, pmc.Count, pmc.Dead, pmc.PlannedWaves));
+        yield return (PmcCardSummary.CardKey, new(pmc.Count, pmc.Dead, pmc.PlannedWaves));
         foreach(var (role,state) in raid.SpecialAis)yield return ($"special:{role}",Of(state));
         yield return ("scavs",Of(raid.Scavs));
         yield return ("event:infectedScreamer",Of(raid.InfectedScreamer));
         yield return ("event:infectedTagilla",Of(raid.InfectedTagilla));
     }
-    private static Snapshot Of(BossState state)=>new(state.Status,state.Count,Dead(state.LifeInstances));
+    private static Snapshot Of(BossState state)=>new(state.Count,Dead(state.LifeInstances));
     private static int Dead(List<BossInstance> instances)=>instances.Count(i=>i.LifeStatus=="DeadConfirmed" && i.DiedAt!=null);
 }
