@@ -98,6 +98,7 @@ public class AppSettings
     public bool AlwaysOnTop { get; set; } = true;
     public bool CloseToTray { get; set; } = true;
     public bool CheckForUpdates { get; set; } = true;
+    public string Theme { get; set; } = "system";
     public Dictionary<string, MapFilter> Maps { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> CustomRoles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public AppSettings()

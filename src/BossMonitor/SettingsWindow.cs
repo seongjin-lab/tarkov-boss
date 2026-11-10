@@ -23,13 +23,13 @@ public class SettingsView : UserControl
         Settings=System.Text.Json.JsonSerializer.Deserialize<AppSettings>(System.Text.Json.JsonSerializer.Serialize(source,Product.Json),Product.Json)!;
         observed=new(observedRoles,StringComparer.OrdinalIgnoreCase);
         Background=Theme.Bg;Foreground=Theme.Text;FontFamily=new FontFamily(I18n.FontFamily);FontSize=14;
-        var root=new DockPanel {Margin=new Thickness(24)};Content=root;
+        var root=new DockPanel {Margin=new Thickness(20,14,20,14)};Content=root;
         var footer=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
         footer.Children.Add(Theme.Action(first?I18n.T("나중에 설정","稍后设置"):I18n.T("돌아가기","返回"),(s,e)=>{if(!applying)Completed?.Invoke(false);}));save.Click+=async(s,e)=>await Save();footer.Children.Add(save);
         var heading=new StackPanel();DockPanel.SetDock(heading,Dock.Top);root.Children.Add(heading);
         heading.Children.Add(Theme.Label(first?I18n.T("처음 시작하기","开始使用"):I18n.T("설정","设置"),24,Theme.Green));
         heading.Children.Add(Theme.Label(first?I18n.T("게임 폴더를 확인하고 설정을 저장하면 감시를 시작합니다.","确认游戏文件夹并保存设置后即可开始监控。"):I18n.T("게임 연결, 맵별 보스, 로그 보관 설정을 관리합니다.","管理游戏连接、各地图首领和日志保留设置。"),14,Theme.Muted));
-        var tabs=new TabControl {Background=Theme.Card,Foreground=Theme.Text,BorderBrush=Theme.Color("#D3DDD6"),Padding=new Thickness(16),Margin=new Thickness(0,8,0,16)};root.Children.Add(tabs);
+        var tabs=new TabControl {Background=Theme.Card,Foreground=Theme.Text,BorderBrush=Theme.Line,Padding=new Thickness(16),Margin=new Thickness(0,8,0,16)};root.Children.Add(tabs);
         StackPanel Section(string title)
         {
             var panel=new StackPanel();tabs.Items.Add(new TabItem {Header=title,Foreground=Theme.Text,Padding=new Thickness(16,9,16,9),Content=new ScrollViewer {Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled}});return panel;
@@ -48,7 +48,7 @@ public class SettingsView : UserControl
         body=Section(I18n.T("맵별 보스","各地图首领"));
         body.Children.Add(Theme.Label(I18n.T("맵별 감시 보스","按地图选择监控首领"),17));body.Children.Add(Theme.Label(I18n.T("맵은 자동으로 감지합니다. 여기서 각 맵의 감시 대상을 선택하세요.","地图会自动检测。请在此选择每张地图要监控的首领。"),14,Theme.Muted));map.SelectionChanged+=(s,e)=>SelectMap();body.Children.Add(map);
         mode.Items.Add(I18n.T("모든 보스 감시","监控所有首领"));mode.Items.Add(I18n.T("선택한 보스만 감시","仅监控所选首领"));mode.Items.Add(I18n.T("감시 안 함","不监控"));mode.SelectionChanged+=(s,e)=>{choices.IsEnabled=mode.SelectedIndex==1;};body.Children.Add(mode);
-        body.Children.Add(new Border {Background=Theme.Card,BorderBrush=Theme.Color("#D3DDD6"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(8),Padding=new Thickness(12),Child=choices});
+        body.Children.Add(new Border {Background=Theme.Card,BorderBrush=Theme.Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(3),Padding=new Thickness(12),Child=choices});
         body=Section(I18n.T("로그 관리","日志管理"));
         body.Children.Add(Theme.Label(I18n.T("게임 로그 · 최근 7일 보관","游戏日志 · 保留最近 7 天"),17));body.Children.Add(Theme.Label(I18n.T("매일 04:00에 Windows 예약 작업으로 정리합니다. 앱이 꺼져 있어도 실행됩니다.\n게임 실행 중·가장 최근 세션은 보호하며, 최근 7일 로그는 용량을 이유로 삭제하지 않습니다.","Windows 计划任务每天 04:00 清理，即使应用未运行也会执行。\n游戏运行期间和最新会话会受到保护，最近 7 天的日志不会因容量原因被删除。"),12,Theme.Muted));body.Children.Add(taskStatus);body.Children.Add(cleanup);body.Children.Add(storage);
         var maintenance=new WrapPanel();maintenance.Children.Add(Theme.Action(I18n.T("예약 작업 복구","修复计划任务"),async(s,e)=>await Repair()));maintenance.Children.Add(Theme.Action(I18n.T("상태 새로고침","刷新状态"),async(s,e)=>await RefreshStatus()));maintenance.Children.Add(Theme.Action(I18n.T("진단 내보내기","导出诊断"),(s,e)=>ExportDiagnostic()));body.Children.Add(maintenance);
@@ -91,7 +91,7 @@ public class SettingsView : UserControl
             var box=new CheckBox {Content=Catalog.BossName(role,Settings),ToolTip=role,IsChecked=filter.Roles.Contains(role,StringComparer.OrdinalIgnoreCase),Padding=new Thickness(0),MinHeight=34,VerticalAlignment=VerticalAlignment.Center,VerticalContentAlignment=VerticalAlignment.Center};checks.Add((role,box));
             (role.Equals("bossScourgeEventLab",StringComparison.OrdinalIgnoreCase)?events:standard).Children.Add(box);
         }
-        choices.Children.Add(new Border {Height=1,Background=Theme.Color("#D3DDD6"),Margin=new Thickness(0,10,0,12)});
+        choices.Children.Add(new Border {Height=1,Background=Theme.Line,Margin=new Thickness(0,10,0,12)});
         choices.Children.Add(Theme.Label(I18n.T("이벤트 보스","活动首领"),14,Theme.Muted));
         choices.Children.Add(events);
         choices.IsEnabled=mode.SelectedIndex==1;

@@ -41,11 +41,12 @@ public class UiRegressionTests
                 };
                 string Risk(int count)=>string.Format(I18n.T("Impossible {0}명","Impossible {0} 人"),count);
                 string Subset(int count)=>string.Format(I18n.T("전체 생존 추정 {0}명에 포함","已计入推测存活的 {0} 人"),count);
-                IEnumerable<string> PmcLabels()=>Text(Assert.Single(panel.Children.Cast<UIElement>().TakeWhile(child=>child is Border)));
+                IEnumerable<string> PmcLabels()=>Text(Assert.IsType<Border>(panel.Children[0]));
                 Render(window,raid);
                 Assert.Contains(Risk(2),PmcLabels());
                 Assert.Contains(Subset(4),PmcLabels());
-                Assert.Contains(PmcLabels(),text=>text.Contains($"{I18n.T("생존 추정","推测存活")} 4") && text.Contains($"{I18n.T("사망 확인","已确认死亡")} 2"));
+                Assert.Contains($"{I18n.T("생존 추정","推测存活")} 4{I18n.T("명","个")}",PmcLabels());
+                Assert.Contains($"{I18n.T("사망 확인","已确认死亡")} 2{I18n.T("명","个")}",PmcLabels());
                 Assert.Single(PmcLabels().Where(text=>text.Contains("Impossible")));
                 Assert.DoesNotContain(PmcLabels(),text=>text is "BEAR" or "USEC");
 
@@ -66,9 +67,9 @@ public class UiRegressionTests
                 Assert.Contains(Risk(1),PmcLabels());
                 Assert.Contains(Subset(3),PmcLabels());
                 raid.Ended=true;Render(window,raid);
-                Assert.DoesNotContain(Risk(1),PmcLabels());
+                Assert.Contains(Risk(1),PmcLabels());
                 Assert.DoesNotContain(Subset(3),PmcLabels());
-                Assert.Contains(string.Format(I18n.T("Impossible · 종료 시 사망 미확인 {0}명","Impossible · 结束时死亡未确认 {0} 人"),1),PmcLabels());
+                Assert.Contains(I18n.T("종료 시 사망 미확인","结束时未确认死亡"),PmcLabels());
             }
             finally {Environment.SetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE",previous);}
         });
@@ -107,7 +108,7 @@ public class UiRegressionTests
                 Assert.Contains(I18n.T("스폰 미확인","未检测到刷新"),Text(events));
                 Assert.Contains(I18n.T("스폰 예정 없음","未计划刷新"),Text(events));
                 Assert.Equal(1,bosses.Children.OfType<Border>().Single(card=>Text(card).Contains(Catalog.BossName("bossTagilla",settings))).Opacity);
-                Assert.Equal(0.65,bosses.Children.OfType<Border>().Single(card=>Text(card).Contains(Catalog.BossName("bossKnight",settings))).Opacity);
+                Assert.Equal(0.8,bosses.Children.OfType<Border>().Single(card=>Text(card).Contains(Catalog.BossName("bossKnight",settings))).Opacity);
                 raid.Bosses["bossKnight"].Status="Confirmed";
                 raid.Bosses["bossKnight"].LifeInstances.Add(new());
                 raid.InfectedTagilla.Status="Confirmed";
@@ -132,7 +133,7 @@ public class UiRegressionTests
             var events=Field<StackPanel>(window,"eventMobs");
             var original=Assert.IsType<Border>(events.Children[0]);
             var skin=original.Background;
-            Assert.IsType<StackPanel>(Assert.IsType<Border>(events.Children[1]).Child);
+            Assert.Same(Theme.Card, Assert.IsType<Border>(events.Children[1]).Background);
             raid.InfectedScreamer.LifeInstances.Add(new());
             raid.InfectedScreamer.Status="Confirmed";
             raid.Scavs.LifeInstances.Add(new());
@@ -154,10 +155,10 @@ public class UiRegressionTests
             Render(window,raid);
             scavs=panel.Children.OfType<Border>().Single(card=>Text(card).Contains(I18n.T("스캐브","Scav")));
             Assert.True(scavs.HasAnimatedProperties);
-            Assert.Equal(0.65,(double)scavs.GetAnimationBaseValue(UIElement.OpacityProperty));
+            Assert.Equal(0.8,(double)scavs.GetAnimationBaseValue(UIElement.OpacityProperty));
             raid.Ended=true;Render(window,raid);
             Assert.All(events.Children.OfType<Border>(),card=>Assert.False(card.HasAnimatedProperties));
-            Assert.IsType<StackPanel>(Assert.IsType<Border>(events.Children[1]).Child);
+            Assert.Same(Theme.Card, Assert.IsType<Border>(events.Children[1]).Background);
         });
     }
 
@@ -194,7 +195,7 @@ public class UiRegressionTests
                 string impossible = Assert.Single(labels.Where(t => t.Contains("Impossible")));
                 Assert.EndsWith(language.StartsWith("ko") ? "1명" : language.StartsWith("zh") ? "1 人" : "1", impossible);
                 string infected = I18n.IsChinese ? "感染者" : I18n.IsKorean ? "감염자" : "Infected";
-                Assert.Equal(map == "laboratory" ? 0 : 2, labels.Count(t => t == (language.StartsWith("ko") ? "스캐브" : "Scav")));
+                Assert.Equal(map == "laboratory" ? 0 : 1, labels.Count(t => t == (language.StartsWith("ko") ? "스캐브" : "Scav")));
                 Assert.DoesNotContain(infected, labels);
                 var eventPanel = Field<StackPanel>(window, "eventMobs");
                 var events = Field<StackPanel>(window, "eventSection");
@@ -343,7 +344,7 @@ public class UiRegressionTests
                 var pmcColumn = Assert.IsType<StackPanel>(panel.Parent);
                 var pmcHeading = Assert.IsType<TextBlock>(pmcColumn.Children[0]);
                 Render(window, raid);
-                Assert.Equal("AI PMC", pmcHeading.Text);
+                Assert.Equal("AI", pmcHeading.Text);
                 Assert.Equal("AI PMC", PmcLabels().First());
                 Assert.Contains(I18n.T("스폰 예정", "计划刷新"), PmcLabels());
                 Assert.DoesNotContain(PmcLabels(), t => t.Contains("Impossible"));
@@ -365,32 +366,163 @@ public class UiRegressionTests
                 usec.LifeInstances.Add(new() { LifeStatus = "DeadConfirmed", DiedAt = new(2000, 1, 1) });
                 raid.Scavs.LifeInstances.Add(new());
                 Render(window, raid);
-                Assert.Equal("AI PMC", pmcHeading.Text);
+                Assert.Equal("AI", pmcHeading.Text);
                 Assert.DoesNotContain(I18n.T("스폰 미확인", "未检测到刷新"), PmcLabels());
                 Assert.DoesNotContain(I18n.T("스폰 예정", "计划刷新"), Text(panel));
                 Assert.DoesNotContain(I18n.T("초기 스폰", "初始刷新"), Text(panel));
                 string aliveLabel = I18n.T("생존 추정", "推测存活");
                 string deadLabel = I18n.T("사망 확인", "已确认死亡");
-                Assert.Contains(PmcLabels(), t => t.Contains($"{aliveLabel} 2") && t.Contains($"{deadLabel} 1"));
+                string unit = I18n.T("명", "个");
+                Assert.Contains($"{aliveLabel} 2{unit}", PmcLabels());
+                Assert.Contains($"{deadLabel} 1{unit}", PmcLabels());
                 Assert.Equal($"{I18n.T("첫 활성화", "首次激活")} 11:12:51", Assert.Single(PmcLabels().Where(t => t.Contains(I18n.T("첫 활성화", "首次激活")))));
                 bearPmc.LifeStatus = "DeadConfirmed";
                 bearPmc.DiedAt = new(2000, 1, 1);
                 Render(window, raid);
-                Assert.Contains(PmcLabels(), t => t.Contains($"{aliveLabel} 1") && t.Contains($"{deadLabel} 2"));
+                Assert.Contains($"{aliveLabel} 1{unit}", PmcLabels());
+                Assert.Contains($"{deadLabel} 2{unit}", PmcLabels());
                 bear.AdditionalPlannedWaves=1;
                 Render(window,raid);
                 Assert.Contains(I18n.T("추가 스폰 예정","追加刷新已计划"),PmcLabels());
                 raid.Ended=true;
                 Render(window,raid);
-                Assert.Equal("AI PMC", pmcHeading.Text);
+                Assert.Equal("AI", pmcHeading.Text);
                 Assert.Equal("AI PMC", PmcLabels().First());
                 string unconfirmedLabel = I18n.T("종료 시 사망 미확인", "结束时未确认死亡");
-                Assert.Contains(PmcLabels(), t => t.Contains($"{unconfirmedLabel} 1") && t.Contains($"{deadLabel} 2"));
+                Assert.Contains($"{unconfirmedLabel} 1{unit}", PmcLabels());
+                Assert.Contains($"{deadLabel} 2{unit}", PmcLabels());
                 Assert.DoesNotContain(I18n.T("추가 스폰 예정","追加刷新已计划"),PmcLabels());
                 Assert.DoesNotContain(I18n.T("추가 스폰 감시 종료","追加刷新监测已结束"),Text(panel));
             }
             finally { Environment.SetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE", previous); }
         });
+    }
+
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("zh-CN")]
+    public void NarrowPmcCardMovesTheWholeDeathCountToTheNextLine(string language)
+    {
+        OnStaThread(() =>
+        {
+            string? previous = Environment.GetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE");
+            try
+            {
+                Environment.SetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE", language);
+                var (window, panel) = CreateRenderer("factory4_day", "all");
+                var raid = new RaidState { Map = "factory4_day", Key = "status-layout", Ended = true };
+                raid.Pmcs["pmcBEAR"] = new()
+                {
+                    Role = "pmcBEAR",
+                    LifeInstances = [new(), new() { LifeStatus = "DeadConfirmed", DiedAt = new(2000, 1, 1) }]
+                };
+                Render(window, raid);
+                var card = Assert.IsType<Border>(panel.Children[0]);
+                card.SetValue(System.Windows.Documents.TextElement.FontFamilyProperty, new System.Windows.Media.FontFamily(I18n.FontFamily));
+                var content = Assert.Single(Assert.IsType<Grid>(card.Child).Children.OfType<StackPanel>());
+                var summary = content.Children.OfType<WrapPanel>().First();
+                var living = Assert.IsType<TextBlock>(summary.Children[0]);
+                var death = Assert.IsType<TextBlock>(summary.Children[1]);
+                Assert.Equal($"{I18n.T("사망 확인","已确认死亡")} 1{I18n.T("명","个")}", death.Text);
+
+                void Arrange(double width)
+                {
+                    card.Measure(new Size(width, double.PositiveInfinity));
+                    card.Arrange(new Rect(0, 0, width, card.DesiredSize.Height));
+                    card.UpdateLayout();
+                }
+
+                Arrange(274);
+                double narrowHeight = death.ActualHeight;
+                Assert.True(System.Windows.Media.VisualTreeHelper.GetOffset(death).Y > System.Windows.Media.VisualTreeHelper.GetOffset(living).Y);
+                Assert.True(death.ActualWidth <= summary.ActualWidth);
+                Arrange(420);
+                Assert.Equal(System.Windows.Media.VisualTreeHelper.GetOffset(living).Y, System.Windows.Media.VisualTreeHelper.GetOffset(death).Y);
+                Assert.Equal(death.ActualHeight, narrowHeight);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("TARKOV_BOSS_MONITOR_LANGUAGE", previous);
+            }
+        });
+    }
+
+    [Fact]
+    public void ThemeSwitchUpdatesExistingCardsAndKeepsTheirPortraitsAndRaidState()
+    {
+        OnStaThread(() =>
+        {
+            var app = new Application();
+            Theme.Apply(app);
+            var (window, ai) = CreateRenderer("factory4_day", "selected");
+            var settings = Field<AppSettings>(window, "settings");
+            settings.Maps["factory4_day"].Roles = ["bossTagilla", "bossCustom"];
+            settings.CustomRoles["bossCustom"] = "Custom";
+            var raid = new RaidState { Map = "factory4_day", Key = "theme", PlayerKills = 7 };
+            raid.InfectedTagilla.Status = "Planned";
+            Render(window, raid);
+
+            var bosses = Field<StackPanel>(window, "bosses").Children.OfType<Border>().ToList();
+            var events = Field<StackPanel>(window, "eventMobs").Children.OfType<Border>().ToList();
+            var ordinary = bosses.Single(card => Text(card).Contains(Catalog.BossName("bossTagilla", settings)));
+            var custom = bosses.Single(card => Text(card).Contains("Custom"));
+            Assert.Same(Portraits.ForRole("bossTagilla"), CardPortrait(ordinary).Source);
+            Assert.Same(Portraits.ForRole("custom-boss"), CardPortrait(custom).Source);
+            Assert.Same(Portraits.ForRole("infectedTagilla"), CardPortrait(events[1]).Source);
+            Assert.Same(Portraits.ForRole("ai-pmc"), CardPortrait(ai.Children[0]).Source);
+
+            var surface = Assert.IsType<System.Windows.Media.SolidColorBrush>(ordinary.Background);
+            var light = surface.Color;
+            var halloween = events[0].Background.ToString();
+            Assert.True(Theme.ApplyMode("dark"));
+            Assert.NotEqual(light, surface.Color);
+            Assert.Equal(halloween, events[0].Background.ToString());
+            var liveBosses = Field<StackPanel>(window, "bosses").Children.OfType<Border>();
+            Assert.Same(ordinary, liveBosses.Single(card => Text(card).Contains(Catalog.BossName("bossTagilla", settings))));
+            Assert.Equal("7", Field<TextBlock>(window, "playerKills").Text);
+            Assert.True(Theme.ApplyMode("light"));
+            Assert.Equal(light, surface.Color);
+            app.Shutdown();
+        });
+    }
+
+    [Fact]
+    public void ScourgeUsesTheEventsColumnAndRespectsBossFilters()
+    {
+        OnStaThread(() =>
+        {
+            var (window, ai) = CreateRenderer("laboratory", "selected");
+            var settings = Field<AppSettings>(window, "settings");
+            settings.Maps["laboratory"].Roles = ["bossScourgeEventLab"];
+            var raid = new RaidState { Map = "laboratory", Key = "scourge" };
+            raid.Bosses["bossScourgeEventLab"] = new()
+            {
+                Status = "Confirmed", Zone = "Lab zone", LifeInstances = [new()]
+            };
+            Render(window, raid);
+            var bosses = Field<StackPanel>(window, "bosses");
+            var events = Field<StackPanel>(window, "eventMobs");
+            var card = Assert.Single(events.Children.OfType<Border>());
+            Assert.Same(Portraits.ForRole("bossScourgeEventLab"), CardPortrait(card).Source);
+            Assert.Contains(Text(card), line => line.Contains("Lab zone"));
+            Assert.Empty(bosses.Children);
+            Assert.DoesNotContain(Catalog.BossName("bossScourgeEventLab", settings), Text(ai));
+
+            settings.Maps["laboratory"].Mode = "off";
+            Render(window, raid);
+            Assert.Empty(events.Children);
+        });
+    }
+
+    private static Image CardPortrait(UIElement card)
+    {
+        if (card is Border { Child: Image image })
+            return image;
+        if (card is Border { Child: UIElement child })
+            return CardPortrait(child);
+        if (card is Grid grid)
+            return CardPortrait(grid.Children.OfType<Grid>().LastOrDefault() ?? grid.Children[0]);
+        throw new InvalidOperationException("카드에서 초상화를 찾지 못했습니다.");
     }
 
     private static (MainWindow Window, StackPanel Panel) CreateRenderer(string map, string filter)

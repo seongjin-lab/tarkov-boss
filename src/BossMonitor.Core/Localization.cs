@@ -16,9 +16,8 @@ public static class I18n
     private static readonly Dictionary<string,string> English = new()
     {
         ["Impossible {0}명"]="Impossible {0}",
-        ["전체 생존 추정 {0}명에 포함"]="Included in the {0} estimated alive",
+        ["전체 생존 추정 {0}명에 포함"]="Of {0} estimated alive",
         ["Impossible · 생존 추정 {0}명"]="Impossible · Estimated alive: {0}",
-        ["Impossible · 종료 시 사망 미확인 {0}명"]="Impossible · Death unconfirmed at raid end: {0}",
         [" · 레이드 종료"]=" · Raid ended", [" 알림을 클릭하면 창을 다시 엽니다."]=" Click the notification to reopen the window.",
         ["●  감시 일시 중지"]="●  Monitoring paused", ["●  감시 중"]="●  Monitoring",
         ["감시 안 함"]="Do not monitor", ["감시 오류: "]="Monitoring error: ", ["감시 일시 중지"]="Pause monitoring",
@@ -68,6 +67,8 @@ public static class I18n
         ["초기 스폰"]="Initial spawn", ["초기 스폰 예정"]="Initial spawn planned", ["초기 스폰 없음"]="No initial spawn",
         ["추가 스폰 감시 중"]="Monitoring for additional spawns", ["추가 스폰 예정"]="Additional spawn planned", ["추가 스폰 감시 종료"]="Additional spawn monitoring ended",
         ["첫 활성화"]="First activation",
+        ["테마"]="Theme", ["다크"]="Dark", ["라이트"]="Light", ["시스템"]="System",
+        ["테마 설정을 저장하지 못했습니다."]="Could not save the theme preference.",
         ["맵별 감시 보스"]="Bosses to monitor by map", ["맵별 보스"]="Bosses by map", ["맵은 자동으로 감지합니다. 여기서 각 맵의 감시 대상을 선택하세요."]="Maps are detected automatically. Select which bosses to monitor on each map.",
         ["명"]="", ["쫄"]="Followers", ["사망 미확인"]="Death unconfirmed", ["모든 보스 감시"]="Monitor all bosses", ["모든 보스 감시 중 · 보스 판정 기록 대기"]="Monitoring all bosses · Waiting for boss records",
         ["백업 경로가 올바르지 않습니다."]="The backup path is invalid.", ["변경된 설정은 자동 복원하지 않습니다."]="Modified settings are not restored automatically.",
@@ -93,7 +94,7 @@ public static class I18n
         ["작업 스케줄러 확인 불가"]="Could not check Task Scheduler", ["작업 시간이 초과되었습니다."]="The operation timed out.", ["작업을 완료하지 못했습니다."]="Could not complete the operation.",
         ["정리 결과를 읽지 못했습니다."]="Could not read the cleanup result.", ["정리 명세 저장소 권한이 올바르지 않습니다."]="The cleanup configuration store has invalid permissions.",
         ["정리 완료"]="Cleanup complete", ["정리 완료 · 일부 파일 건너뜀"]="Cleanup complete · Some files skipped", ["정션·심볼릭 링크 경로는 지원하지 않습니다."]="Junction and symbolic-link paths are not supported.",
-        ["종료"]="Exit", ["종료 시 사망 미확인"]="Death unconfirmed at raid end", ["종료 코드"]="Exit code", ["종료된 레이드"]="Ended raid",
+        ["종료"]="Exit", ["종료 시 사망 미확인"]="Death unconfirmed", ["종료 코드"]="Exit code", ["종료된 레이드"]="Ended raid",
         ["지원하지 않는 경로 확인 작업입니다."]="Unsupported path-check operation.", ["지원하지 않는 작업입니다."]="Unsupported operation.", ["진단 내보내기"]="Export diagnostics",
         ["진단 파일"]="Diagnostic file", ["창 열기"]="Open window", ["처음 시작하기"]="Get started", ["처음 시작하기 · Tarkov Boss Monitor"]="Get started · Tarkov Boss Monitor",
         ["체크하면 닫기(X)로 숨긴 뒤에도 감시합니다. 해제하면 창을 닫을 때 종료합니다.\n트레이로 숨길 때 안내하고, 숨겨진 상태에서 보스 스폰 확인 시 Windows 알림을 표시합니다."]="When enabled, closing the window hides it to the tray and monitoring continues. When disabled, closing the window exits the app.\nA notification appears when hidden to the tray and when a monitored boss spawn is confirmed while hidden.",

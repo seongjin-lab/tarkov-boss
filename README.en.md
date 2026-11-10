@@ -14,6 +14,7 @@ A Windows x64 app that detects boss spawns in official PvE raids running locally
 ## Features
 
 - Detects the current map from raid logs
+- Switch between Dark, Light, and System in the top bar. System follows the Windows app mode by default. Cards use role-specific pixel art.
 - Shows activated, estimated-alive, and confirmed-dead Rogue and Raider counts
 - Tracks infected and infected Tagilla separately in the Events section, including infected Tagilla's spawn chance, spawn decision, and life state after activation
 - Lets you choose bosses to monitor for each map
